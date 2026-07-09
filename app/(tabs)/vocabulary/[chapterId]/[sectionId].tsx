@@ -8,6 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../../../src/lib/supabase';
 import { useAuthStore } from '../../../../src/stores/authStore';
 import { useVocabStore, rowToVocab } from '../../../../src/stores/vocabStore';
+import { useNavigationStore } from '../../../../src/stores/navigationStore';
 import { Vocabulary, VocabRow, VocabStatus } from '../../../../src/types';
 import { COLORS, FONTS, RADIUS, SPACING } from '../../../../src/constants/colors';
 import { VocabCard } from '../../../../src/components/VocabCard';
@@ -27,6 +28,7 @@ export default function SectionDetailScreen() {
   const sectionNum = parseInt(sectionId, 10);
 
   const { user } = useAuthStore();
+  const { saveLocation } = useNavigationStore();
   const { statusMap, updateStatus, getStatus } = useVocabStore();
   const [sectionName, setSectionName] = useState('');
   const [vocab, setVocab] = useState<Vocabulary[]>([]);
@@ -54,8 +56,17 @@ export default function SectionDetailScreen() {
     }
 
     if (data && data.length > 0) {
-      setSectionName((data[0] as VocabRow).section_name);
+      const firstRow = data[0] as VocabRow;
+      setSectionName(firstRow.section_name);
       setVocab((data as VocabRow[]).map(rowToVocab));
+      // Persist last visited location for dashboard "Continue" card
+      saveLocation({
+        type: 'section',
+        chapterId: chapterNum,
+        chapterName: firstRow.chapter_name,
+        sectionId: sectionNum,
+        sectionName: firstRow.section_name,
+      });
     }
     setLoading(false);
   };

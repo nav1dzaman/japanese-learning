@@ -3,7 +3,8 @@ import { useEffect } from 'react';
 import { Text, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../../src/stores/authStore';
-import { COLORS } from '../../src/constants/colors';
+import { useThemeStore } from '../../src/stores/themeStore';
+import { getThemeColors } from '../../src/constants/colors';
 
 function TabIcon({ emoji, focused }: { emoji: string; focused: boolean }) {
   return (
@@ -13,6 +14,8 @@ function TabIcon({ emoji, focused }: { emoji: string; focused: boolean }) {
 
 export default function TabsLayout() {
   const { session, initialized } = useAuthStore();
+  const { scheme, hydrate: hydrateTheme } = useThemeStore();
+  const C = getThemeColors(scheme);
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
@@ -20,6 +23,8 @@ export default function TabsLayout() {
       router.replace('/(auth)/login');
     }
   }, [session, initialized]);
+
+  useEffect(() => { hydrateTheme(); }, []);
 
   if (!session) return null;
 
@@ -32,18 +37,20 @@ export default function TabsLayout() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: COLORS.bgCard,
-          borderTopColor: COLORS.border,
-          borderTopWidth: 1,
+          backgroundColor: C.bgCard,
+          borderTopColor: C.border,
+          borderTopWidth: 0.5,
           height: 60 + bottomPad,
           paddingBottom: bottomPad,
           paddingTop: 10,
+          elevation: 0,
+          shadowOpacity: 0,
         },
         tabBarItemStyle: {
           paddingTop: 4,
         },
-        tabBarActiveTintColor: COLORS.primary,
-        tabBarInactiveTintColor: COLORS.textMuted,
+        tabBarActiveTintColor: C.primary,
+        tabBarInactiveTintColor: C.textMuted,
         tabBarLabelStyle: {
           fontSize: 11,
           fontWeight: '600',
@@ -66,6 +73,10 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="verbs"
+        options={{ href: null }}
+      />
+      <Tabs.Screen
         name="studied"
         options={{
           title: 'Studied',
@@ -79,6 +90,10 @@ export default function TabsLayout() {
           tabBarIcon: ({ focused }) => <TabIcon emoji="🧠" focused={focused} />,
         }}
       />
+      {/* Hidden screens — no tab bar entry */}
+      <Tabs.Screen name="settings" options={{ href: null }} />
+      <Tabs.Screen name="audio" options={{ href: null }} />
+      <Tabs.Screen name="studybook" options={{ href: null }} />
     </Tabs>
   );
 }

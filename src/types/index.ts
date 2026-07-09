@@ -1,4 +1,5 @@
 export type VocabStatus = 'unread' | 'studying' | 'studied';
+export type VerbStatus = 'unread' | 'studying' | 'studied';
 
 // Matches the actual flat Supabase `vocabulary` table
 export interface VocabRow {
@@ -60,4 +61,33 @@ export interface ChapterWithStats extends Chapter {
   totalVocab: number;
   studiedCount: number;
   studyingCount: number;
+}
+
+// ── Verb types ──
+export interface VerbRow {
+  id: number;
+  dictionary: string;
+  meaning: string;
+  meaning_romaji: string;
+  verb_type: string;
+  te_form: string;
+  masu_form: string;
+  potential_form: string;
+  nai_form: string;
+  plain_volitional: string;
+  polite_volitional: string;
+}
+
+export interface Verb {
+  id: number;
+  dictionary: string;
+  meaning: string;
+  meaning_romaji: string;
+  verb_type: string;
+  te_form: string;
+  masu_form: string;
+  potential_form: string;
+  nai_form: string;
+  plain_volitional: string;
+  polite_volitional: string;
 }
