@@ -1,12 +1,20 @@
-import { DarkTheme, ThemeProvider } from '@react-navigation/native';
+import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router/react-navigation';
 import { router, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Image, StyleSheet, View } from 'react-native';
+import { Animated, Image, StyleSheet, View, LogBox } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import { supabase } from '../src/lib/supabase';
 import { useAuthStore } from '../src/stores/authStore';
 import { useVocabStore } from '../src/stores/vocabStore';
+import { useThemeStore } from '../src/stores/themeStore';
+import { getThemeColors } from '../src/constants/colors';
+
+// Ignore harmless Expo CLI connection retry warnings in LogBox UI
+LogBox.ignoreLogs([
+  'Cannot connect to Expo CLI',
+  'WebSocket connection',
+]);
 
 // Prevent the native splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
@@ -14,11 +22,16 @@ SplashScreen.preventAutoHideAsync();
 export default function RootLayout() {
   const { setSession, user, initialized } = useAuthStore();
   const { fetchStatuses } = useVocabStore();
+  const { scheme, hydrate: hydrateTheme } = useThemeStore();
+  const C = getThemeColors(scheme);
+  const isDark = scheme === 'dark';
 
   const [appReady, setAppReady] = useState(false);
   const [showCustomSplash, setShowCustomSplash] = useState(true);
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => { hydrateTheme(); }, []);
 
   useEffect(() => {
     // Get initial session
@@ -76,21 +89,21 @@ export default function RootLayout() {
     }
   }, [initialized, user, showCustomSplash]);
 
-  const customDark = {
-    ...DarkTheme,
+  const navTheme = {
+    ...(isDark ? DarkTheme : DefaultTheme),
     colors: {
-      ...DarkTheme.colors,
-      background: '#0D0D1A',
-      card: '#16162A',
-      border: 'rgba(255,255,255,0.08)',
-      text: '#F0EEF8',
-      primary: '#7C6AF7',
+      ...(isDark ? DarkTheme : DefaultTheme).colors,
+      background: C.bg,
+      card: C.bgCard,
+      border: C.border,
+      text: C.text,
+      primary: C.primary,
     },
   };
 
   return (
-    <ThemeProvider value={customDark}>
-      <StatusBar style="light" />
+    <ThemeProvider value={navTheme}>
+      <StatusBar style={isDark ? 'light' : 'dark'} />
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -101,7 +114,7 @@ export default function RootLayout() {
       {showCustomSplash && (
         <Animated.View
           style={[
-            StyleSheet.absoluteFillObject,
+            StyleSheet.absoluteFill,
             {
               opacity: fadeAnim,
               transform: [{ scale: scaleAnim }],

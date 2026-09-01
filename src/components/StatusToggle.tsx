@@ -1,7 +1,8 @@
 import React from 'react';
 import { TouchableOpacity, Text, StyleSheet, View } from 'react-native';
 import { VocabStatus } from '../types';
-import { COLORS, FONTS, RADIUS, SPACING } from '../constants/colors';
+import { useColors } from '../hooks/useColors';
+import { FONTS, RADIUS, SPACING, type ThemeColors } from '../constants/colors';
 
 interface StatusToggleProps {
   status: VocabStatus;
@@ -9,31 +10,35 @@ interface StatusToggleProps {
   compact?: boolean;
 }
 
-const STATUS_CONFIG = {
-  unread: {
-    label: 'Unread',
-    emoji: '📖',
-    color: COLORS.unread,
-    muted: COLORS.unreadMuted,
-    next: 'studying' as VocabStatus,
-  },
-  studying: {
-    label: 'Studying',
-    emoji: '✏️',
-    color: COLORS.studying,
-    muted: COLORS.studyingMuted,
-    next: 'studied' as VocabStatus,
-  },
-  studied: {
-    label: 'Studied',
-    emoji: '✅',
-    color: COLORS.studied,
-    muted: COLORS.studiedMuted,
-    next: 'unread' as VocabStatus,
-  },
-};
+function getStatusConfig(C: ThemeColors) {
+  return {
+    unread: {
+      label: 'Unread',
+      emoji: '📖',
+      color: C.unread,
+      muted: C.unreadMuted,
+      next: 'studying' as VocabStatus,
+    },
+    studying: {
+      label: 'Studying',
+      emoji: '✏️',
+      color: C.studying,
+      muted: C.studyingMuted,
+      next: 'studied' as VocabStatus,
+    },
+    studied: {
+      label: 'Studied',
+      emoji: '✅',
+      color: C.studied,
+      muted: C.studiedMuted,
+      next: 'unread' as VocabStatus,
+    },
+  };
+}
 
 export function StatusToggle({ status, onPress, compact = false }: StatusToggleProps) {
+  const C = useColors();
+  const STATUS_CONFIG = getStatusConfig(C);
   const config = STATUS_CONFIG[status];
 
   return (
@@ -55,6 +60,8 @@ export function StatusToggle({ status, onPress, compact = false }: StatusToggleP
 }
 
 export function StatusBadge({ status }: { status: VocabStatus }) {
+  const C = useColors();
+  const STATUS_CONFIG = getStatusConfig(C);
   const config = STATUS_CONFIG[status];
   return (
     <View style={[styles.badge, { backgroundColor: config.muted }]}>

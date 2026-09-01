@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TextInput,
   TouchableOpacity, ActivityIndicator, KeyboardAvoidingView,
@@ -7,7 +7,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuthStore } from '../../src/stores/authStore';
 import { supabase } from '../../src/lib/supabase';
-import { COLORS, FONTS, RADIUS, SPACING, SHADOWS } from '../../src/constants/colors';
+import { useColors } from '../../src/hooks/useColors';
+import { FONTS, RADIUS, SPACING, SHADOWS, type ThemeColors } from '../../src/constants/colors';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -41,6 +42,8 @@ function dayOfWeek(iso: string): string {
 
 export default function StudyBookScreen() {
   const { user } = useAuthStore();
+  const C = useColors();
+  const s = useMemo(() => makeStyles(C), [C]);
 
   const [todayContent, setTodayContent] = useState('');
   const [todayId, setTodayId] = useState<string | null>(null);
@@ -135,48 +138,48 @@ export default function StudyBookScreen() {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={s.container}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
 
         {/* Header */}
-        <View style={styles.header}>
+        <View style={s.header}>
           <View>
-            <Text style={styles.title}>Study Book</Text>
-            <Text style={styles.subtitle}>Your daily learning journal</Text>
+            <Text style={s.title}>Study Book</Text>
+            <Text style={s.subtitle}>Your daily learning journal</Text>
           </View>
-          <Text style={styles.headerEmoji}>📔</Text>
+          <Text style={s.headerEmoji}>📔</Text>
         </View>
 
         <ScrollView
-          contentContainerStyle={styles.content}
+          contentContainerStyle={s.content}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={C.primary} />}
         >
           {/* ── Today's Note ─────────────────────────────── */}
-          <View style={styles.todayCard}>
+          <View style={s.todayCard}>
             {/* Date badge */}
-            <View style={styles.todayDateRow}>
-              <View style={styles.todayBadge}>
-                <Text style={styles.todayBadgeDay}>{dayOfWeek(todayISO())}</Text>
-                <Text style={styles.todayBadgeNum}>{new Date().getDate()}</Text>
+            <View style={s.todayDateRow}>
+              <View style={s.todayBadge}>
+                <Text style={s.todayBadgeDay}>{dayOfWeek(todayISO())}</Text>
+                <Text style={s.todayBadgeNum}>{new Date().getDate()}</Text>
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.todayLabel}>TODAY</Text>
-                <Text style={styles.todayFullDate}>
+                <Text style={s.todayLabel}>TODAY</Text>
+                <Text style={s.todayFullDate}>
                   {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                 </Text>
               </View>
               {/* Save button */}
               <TouchableOpacity
                 onPress={handleManualSave}
-                style={[styles.saveBtn, saveLabel === 'saved' && styles.saveBtnDone]}
+                style={[s.saveBtn, saveLabel === 'saved' && s.saveBtnDone]}
                 disabled={saving}
               >
                 {saving ? (
-                  <ActivityIndicator color={COLORS.primary} size="small" />
+                  <ActivityIndicator color={C.primary} size="small" />
                 ) : (
-                  <Text style={[styles.saveBtnText, saveLabel === 'saved' && styles.saveBtnTextDone]}>
+                  <Text style={[s.saveBtnText, saveLabel === 'saved' && s.saveBtnTextDone]}>
                     {saveLabel === 'saved' ? '✓ Saved' : '💾 Save'}
                   </Text>
                 )}
@@ -185,35 +188,35 @@ export default function StudyBookScreen() {
 
             {/* Text input */}
             <TextInput
-              style={styles.noteInput}
+              style={s.noteInput}
               value={todayContent}
               onChangeText={handleTextChange}
               placeholder={"What did you study today? \n\n• New words learned\n• Grammar points\n• How the session went..."}
-              placeholderTextColor={COLORS.textMuted}
+              placeholderTextColor={C.textMuted}
               multiline
               textAlignVertical="top"
               scrollEnabled={false}
             />
 
             {todayContent.length > 0 && (
-              <Text style={styles.charCount}>{todayContent.length} characters</Text>
+              <Text style={s.charCount}>{todayContent.length} characters</Text>
             )}
           </View>
 
           {/* ── Past Notes ───────────────────────────────── */}
           {loading ? (
-            <ActivityIndicator color={COLORS.primary} style={{ marginTop: SPACING.xxl }} />
+            <ActivityIndicator color={C.primary} style={{ marginTop: SPACING.xxl }} />
           ) : pastNotes.length === 0 ? (
-            <View style={styles.emptyPast}>
-              <Text style={styles.emptyEmoji}>📅</Text>
-              <Text style={styles.emptyText}>No previous entries yet</Text>
-              <Text style={styles.emptySubtext}>Start writing today — your entries will appear here tomorrow!</Text>
+            <View style={s.emptyPast}>
+              <Text style={s.emptyEmoji}>📅</Text>
+              <Text style={s.emptyText}>No previous entries yet</Text>
+              <Text style={s.emptySubtext}>Start writing today — your entries will appear here tomorrow!</Text>
             </View>
           ) : (
             <>
-              <Text style={styles.pastHeading}>Previous Entries</Text>
+              <Text style={s.pastHeading}>Previous Entries</Text>
               {pastNotes.map((note) => (
-                <PastNoteCard key={note.id} note={note} />
+                <PastNoteCard key={note.id} note={note} C={C} s={s} />
               ))}
             </>
           )}
@@ -227,7 +230,7 @@ export default function StudyBookScreen() {
 
 // ── Past Note Card ────────────────────────────────────────────────────────────
 
-function PastNoteCard({ note }: { note: StudyNote }) {
+function PastNoteCard({ note, C, s }: { note: StudyNote; C: ThemeColors; s: ReturnType<typeof makeStyles> }) {
   const [expanded, setExpanded] = useState(false);
   const isLong = note.content.length > 200;
   const displayContent = !expanded && isLong
@@ -238,27 +241,27 @@ function PastNoteCard({ note }: { note: StudyNote }) {
     <TouchableOpacity
       activeOpacity={0.85}
       onPress={() => isLong && setExpanded((v) => !v)}
-      style={styles.pastCard}
+      style={s.pastCard}
     >
-      <View style={styles.pastCardTop}>
+      <View style={s.pastCardTop}>
         {/* Date column */}
-        <View style={styles.pastDateCol}>
-          <Text style={styles.pastDay}>{dayOfWeek(note.note_date)}</Text>
-          <Text style={styles.pastNum}>{new Date(note.note_date + 'T00:00:00').getDate()}</Text>
-          <Text style={styles.pastMonth}>
+        <View style={s.pastDateCol}>
+          <Text style={s.pastDay}>{dayOfWeek(note.note_date)}</Text>
+          <Text style={s.pastNum}>{new Date(note.note_date + 'T00:00:00').getDate()}</Text>
+          <Text style={s.pastMonth}>
             {new Date(note.note_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short' })}
           </Text>
         </View>
 
         {/* Divider */}
-        <View style={styles.pastDivider} />
+        <View style={s.pastDivider} />
 
         {/* Content */}
         <View style={{ flex: 1 }}>
-          <Text style={styles.pastDateLabel}>{formatDisplayDate(note.note_date)}</Text>
-          <Text style={styles.pastContent}>{displayContent}</Text>
+          <Text style={s.pastDateLabel}>{formatDisplayDate(note.note_date)}</Text>
+          <Text style={s.pastContent}>{displayContent}</Text>
           {isLong && (
-            <Text style={styles.expandBtn}>{expanded ? '▲ Show less' : '▼ Show more'}</Text>
+            <Text style={s.expandBtn}>{expanded ? '▲ Show less' : '▼ Show more'}</Text>
           )}
         </View>
       </View>
@@ -268,124 +271,126 @@ function PastNoteCard({ note }: { note: StudyNote }) {
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg },
+function makeStyles(C: ThemeColors) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: C.bg },
 
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    paddingHorizontal: SPACING.xl,
-    paddingTop: SPACING.lg,
-    paddingBottom: SPACING.md,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  title: { fontSize: FONTS.sizes.xxl, fontWeight: FONTS.weights.heavy, color: COLORS.text },
-  subtitle: { fontSize: FONTS.sizes.sm, color: COLORS.textSecondary, marginTop: 2 },
-  headerEmoji: { fontSize: 36 },
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      paddingHorizontal: SPACING.xl,
+      paddingTop: SPACING.lg,
+      paddingBottom: SPACING.md,
+      borderBottomWidth: 1,
+      borderBottomColor: C.border,
+    },
+    title: { fontSize: FONTS.sizes.xxl, fontWeight: FONTS.weights.heavy, color: C.text },
+    subtitle: { fontSize: FONTS.sizes.sm, color: C.textSecondary, marginTop: 2 },
+    headerEmoji: { fontSize: 36 },
 
-  content: { padding: SPACING.xl },
+    content: { padding: SPACING.xl },
 
-  // Today card
-  todayCard: {
-    backgroundColor: COLORS.bgCard,
-    borderRadius: RADIUS.xl,
-    padding: SPACING.xl,
-    marginBottom: SPACING.xl,
-    borderWidth: 1,
-    borderColor: COLORS.borderActive,
-    ...SHADOWS.card,
-  },
-  todayDateRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.md,
-    marginBottom: SPACING.lg,
-  },
-  todayBadge: {
-    width: 52,
-    height: 52,
-    borderRadius: RADIUS.md,
-    backgroundColor: COLORS.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  todayBadgeDay: { fontSize: FONTS.sizes.xs, color: 'rgba(255,255,255,0.8)', fontWeight: FONTS.weights.semibold },
-  todayBadgeNum: { fontSize: FONTS.sizes.xl, color: '#fff', fontWeight: FONTS.weights.heavy, lineHeight: 26 },
-  todayLabel: {
-    fontSize: FONTS.sizes.xs,
-    fontWeight: FONTS.weights.heavy,
-    color: COLORS.primary,
-    letterSpacing: 1.5,
-  },
-  todayFullDate: { fontSize: FONTS.sizes.sm, color: COLORS.textSecondary, marginTop: 2 },
-  saveBtn: {
-    paddingVertical: SPACING.sm,
-    paddingHorizontal: SPACING.md,
-    borderRadius: RADIUS.full,
-    backgroundColor: COLORS.primaryMuted,
-    borderWidth: 1,
-    borderColor: COLORS.borderActive,
-    minWidth: 72,
-    alignItems: 'center',
-  },
-  saveBtnDone: { backgroundColor: COLORS.studiedMuted, borderColor: COLORS.studied },
-  saveBtnText: { fontSize: FONTS.sizes.sm, color: COLORS.primary, fontWeight: FONTS.weights.semibold },
-  saveBtnTextDone: { color: COLORS.studied },
-  noteInput: {
-    minHeight: 180,
-    color: COLORS.text,
-    fontSize: FONTS.sizes.md,
-    lineHeight: 24,
-    padding: SPACING.md,
-    backgroundColor: COLORS.bgInput,
-    borderRadius: RADIUS.lg,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  charCount: {
-    fontSize: FONTS.sizes.xs,
-    color: COLORS.textMuted,
-    textAlign: 'right',
-    marginTop: SPACING.xs,
-  },
+    // Today card
+    todayCard: {
+      backgroundColor: C.bgCard,
+      borderRadius: RADIUS.xl,
+      padding: SPACING.xl,
+      marginBottom: SPACING.xl,
+      borderWidth: 1,
+      borderColor: C.borderActive,
+      ...SHADOWS.card,
+    },
+    todayDateRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: SPACING.md,
+      marginBottom: SPACING.lg,
+    },
+    todayBadge: {
+      width: 52,
+      height: 52,
+      borderRadius: RADIUS.md,
+      backgroundColor: C.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    todayBadgeDay: { fontSize: FONTS.sizes.xs, color: 'rgba(255,255,255,0.8)', fontWeight: FONTS.weights.semibold },
+    todayBadgeNum: { fontSize: FONTS.sizes.xl, color: '#fff', fontWeight: FONTS.weights.heavy, lineHeight: 26 },
+    todayLabel: {
+      fontSize: FONTS.sizes.xs,
+      fontWeight: FONTS.weights.heavy,
+      color: C.primary,
+      letterSpacing: 1.5,
+    },
+    todayFullDate: { fontSize: FONTS.sizes.sm, color: C.textSecondary, marginTop: 2 },
+    saveBtn: {
+      paddingVertical: SPACING.sm,
+      paddingHorizontal: SPACING.md,
+      borderRadius: RADIUS.full,
+      backgroundColor: C.primaryMuted,
+      borderWidth: 1,
+      borderColor: C.borderActive,
+      minWidth: 72,
+      alignItems: 'center',
+    },
+    saveBtnDone: { backgroundColor: C.studiedMuted, borderColor: C.studied },
+    saveBtnText: { fontSize: FONTS.sizes.sm, color: C.primary, fontWeight: FONTS.weights.semibold },
+    saveBtnTextDone: { color: C.studied },
+    noteInput: {
+      minHeight: 180,
+      color: C.text,
+      fontSize: FONTS.sizes.md,
+      lineHeight: 24,
+      padding: SPACING.md,
+      backgroundColor: C.bgInput,
+      borderRadius: RADIUS.lg,
+      borderWidth: 1,
+      borderColor: C.border,
+    },
+    charCount: {
+      fontSize: FONTS.sizes.xs,
+      color: C.textMuted,
+      textAlign: 'right',
+      marginTop: SPACING.xs,
+    },
 
-  // Past notes
-  pastHeading: {
-    fontSize: FONTS.sizes.lg,
-    fontWeight: FONTS.weights.bold,
-    color: COLORS.text,
-    marginBottom: SPACING.md,
-  },
-  pastCard: {
-    backgroundColor: COLORS.bgCard,
-    borderRadius: RADIUS.xl,
-    padding: SPACING.lg,
-    marginBottom: SPACING.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    ...SHADOWS.card,
-  },
-  pastCardTop: { flexDirection: 'row', gap: SPACING.md, alignItems: 'flex-start' },
-  pastDateCol: { alignItems: 'center', minWidth: 36 },
-  pastDay: { fontSize: FONTS.sizes.xs, color: COLORS.primary, fontWeight: FONTS.weights.bold },
-  pastNum: { fontSize: FONTS.sizes.xl, fontWeight: FONTS.weights.heavy, color: COLORS.text, lineHeight: 28 },
-  pastMonth: { fontSize: FONTS.sizes.xs, color: COLORS.textMuted },
-  pastDivider: { width: 1, backgroundColor: COLORS.border, alignSelf: 'stretch', marginHorizontal: SPACING.xs },
-  pastDateLabel: { fontSize: FONTS.sizes.sm, fontWeight: FONTS.weights.semibold, color: COLORS.textSecondary, marginBottom: SPACING.xs },
-  pastContent: { fontSize: FONTS.sizes.sm, color: COLORS.text, lineHeight: 20 },
-  expandBtn: { fontSize: FONTS.sizes.xs, color: COLORS.primary, marginTop: SPACING.sm, fontWeight: FONTS.weights.semibold },
+    // Past notes
+    pastHeading: {
+      fontSize: FONTS.sizes.lg,
+      fontWeight: FONTS.weights.bold,
+      color: C.text,
+      marginBottom: SPACING.md,
+    },
+    pastCard: {
+      backgroundColor: C.bgCard,
+      borderRadius: RADIUS.xl,
+      padding: SPACING.lg,
+      marginBottom: SPACING.md,
+      borderWidth: 1,
+      borderColor: C.border,
+      ...SHADOWS.card,
+    },
+    pastCardTop: { flexDirection: 'row', gap: SPACING.md, alignItems: 'flex-start' },
+    pastDateCol: { alignItems: 'center', minWidth: 36 },
+    pastDay: { fontSize: FONTS.sizes.xs, color: C.primary, fontWeight: FONTS.weights.bold },
+    pastNum: { fontSize: FONTS.sizes.xl, fontWeight: FONTS.weights.heavy, color: C.text, lineHeight: 28 },
+    pastMonth: { fontSize: FONTS.sizes.xs, color: C.textMuted },
+    pastDivider: { width: 1, backgroundColor: C.border, alignSelf: 'stretch', marginHorizontal: SPACING.xs },
+    pastDateLabel: { fontSize: FONTS.sizes.sm, fontWeight: FONTS.weights.semibold, color: C.textSecondary, marginBottom: SPACING.xs },
+    pastContent: { fontSize: FONTS.sizes.sm, color: C.text, lineHeight: 20 },
+    expandBtn: { fontSize: FONTS.sizes.xs, color: C.primary, marginTop: SPACING.sm, fontWeight: FONTS.weights.semibold },
 
-  // Empty
-  emptyPast: { alignItems: 'center', marginTop: SPACING.xxl, gap: SPACING.md },
-  emptyEmoji: { fontSize: 48 },
-  emptyText: { fontSize: FONTS.sizes.lg, color: COLORS.textSecondary, fontWeight: FONTS.weights.semibold },
-  emptySubtext: {
-    fontSize: FONTS.sizes.sm,
-    color: COLORS.textMuted,
-    textAlign: 'center',
-    paddingHorizontal: SPACING.xl,
-    lineHeight: 20,
-  },
-});
+    // Empty
+    emptyPast: { alignItems: 'center', marginTop: SPACING.xxl, gap: SPACING.md },
+    emptyEmoji: { fontSize: 48 },
+    emptyText: { fontSize: FONTS.sizes.lg, color: C.textSecondary, fontWeight: FONTS.weights.semibold },
+    emptySubtext: {
+      fontSize: FONTS.sizes.sm,
+      color: C.textMuted,
+      textAlign: 'center',
+      paddingHorizontal: SPACING.xl,
+      lineHeight: 20,
+    },
+  });
+}

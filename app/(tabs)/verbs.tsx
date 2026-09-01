@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -14,7 +14,8 @@ import { supabase } from '../../src/lib/supabase';
 import { useAuthStore } from '../../src/stores/authStore';
 import { useVerbStore } from '../../src/stores/verbStore';
 import { Verb, VerbStatus } from '../../src/types';
-import { COLORS, FONTS, RADIUS, SPACING } from '../../src/constants/colors';
+import { useColors } from '../../src/hooks/useColors';
+import { FONTS, RADIUS, SPACING, type ThemeColors } from '../../src/constants/colors';
 import { VerbCard } from '../../src/components/VerbCard';
 
 type FilterMode = 'all' | 'unread' | 'studying' | 'studied';
@@ -29,6 +30,8 @@ const FILTER_OPTIONS: { label: string; value: FilterMode; emoji: string }[] = [
 export default function VerbsScreen() {
   const { user } = useAuthStore();
   const { fetchStatuses, updateStatus, getStatus } = useVerbStore();
+  const C = useColors();
+  const s = useMemo(() => makeStyles(C), [C]);
 
   const [verbs, setVerbs] = useState<Verb[]>([]);
   const [filter, setFilter] = useState<FilterMode>('all');
@@ -84,71 +87,71 @@ export default function VerbsScreen() {
 
   const counts = verbs.reduce(
     (acc, v) => {
-      const s = getStatus(v.id);
-      acc[s]++;
+      const st = getStatus(v.id);
+      acc[st]++;
       return acc;
     },
     { unread: 0, studying: 0, studied: 0 }
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={s.container}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backText}>‹ Home</Text>
+      <View style={s.header}>
+        <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
+          <Text style={s.backText}>‹ Home</Text>
         </TouchableOpacity>
 
-        <View style={styles.titleRow}>
-          <Text style={styles.titleEmoji}>動</Text>
+        <View style={s.titleRow}>
+          <Text style={s.titleEmoji}>動</Text>
           <View>
-            <Text style={styles.title}>Verbs</Text>
-            <Text style={styles.subtitle}>{verbs.length} verbs total</Text>
+            <Text style={s.title}>Verbs</Text>
+            <Text style={s.subtitle}>{verbs.length} verbs total</Text>
           </View>
         </View>
 
         {/* Status count pills */}
-        <View style={styles.countRow}>
-          <CountPill label="Unread" value={counts.unread} color={COLORS.unread} />
-          <CountPill label="Studying" value={counts.studying} color={COLORS.studying} />
-          <CountPill label="Studied" value={counts.studied} color={COLORS.studied} />
+        <View style={s.countRow}>
+          <CountPill label="Unread" value={counts.unread} color={C.unread} />
+          <CountPill label="Studying" value={counts.studying} color={C.studying} />
+          <CountPill label="Studied" value={counts.studied} color={C.studied} />
         </View>
       </View>
 
       {/* Search bar — searches meaning column */}
-      <View style={styles.searchContainer}>
-        <Text style={styles.searchIcon}>🔍</Text>
+      <View style={s.searchContainer}>
+        <Text style={s.searchIcon}>🔍</Text>
         <TextInput
-          style={styles.searchInput}
+          style={s.searchInput}
           placeholder="Search by meaning..."
-          placeholderTextColor={COLORS.textMuted}
+          placeholderTextColor={C.textMuted}
           value={search}
           onChangeText={setSearch}
           returnKeyType="search"
         />
         {search.length > 0 && (
-          <TouchableOpacity onPress={() => setSearch('')} style={styles.clearBtn}>
-            <Text style={styles.clearBtnText}>✕</Text>
+          <TouchableOpacity onPress={() => setSearch('')} style={s.clearBtn}>
+            <Text style={s.clearBtnText}>✕</Text>
           </TouchableOpacity>
         )}
       </View>
 
       {/* Filter tabs */}
-      <View style={styles.filterRow}>
+      <View style={s.filterRow}>
         {FILTER_OPTIONS.map((opt) => (
           <TouchableOpacity
             key={opt.value}
             onPress={() => setFilter(opt.value)}
             style={[
-              styles.filterTab,
-              filter === opt.value && styles.filterTabActive,
+              s.filterTab,
+              filter === opt.value && s.filterTabActive,
             ]}
           >
-            <Text style={styles.filterEmoji}>{opt.emoji}</Text>
+            <Text style={s.filterEmoji}>{opt.emoji}</Text>
             <Text
               style={[
-                styles.filterLabel,
-                filter === opt.value && styles.filterLabelActive,
+                s.filterLabel,
+                filter === opt.value && s.filterLabelActive,
               ]}
             >
               {opt.label}
@@ -158,24 +161,24 @@ export default function VerbsScreen() {
       </View>
 
       {loading ? (
-        <ActivityIndicator color={COLORS.primary} size="large" style={{ marginTop: 60 }} />
+        <ActivityIndicator color={C.primary} size="large" style={{ marginTop: 60 }} />
       ) : dbError ? (
-        <View style={styles.empty}>
-          <Text style={styles.emptyEmoji}>⚠️</Text>
-          <Text style={styles.emptyText}>Database Error</Text>
-          <Text style={styles.emptySubtext}>{dbError}</Text>
-          <TouchableOpacity onPress={fetchVerbs} style={styles.retryBtn}>
-            <Text style={styles.retryText}>Retry</Text>
+        <View style={s.empty}>
+          <Text style={s.emptyEmoji}>⚠️</Text>
+          <Text style={s.emptyText}>Database Error</Text>
+          <Text style={s.emptySubtext}>{dbError}</Text>
+          <TouchableOpacity onPress={fetchVerbs} style={s.retryBtn}>
+            <Text style={s.retryText}>Retry</Text>
           </TouchableOpacity>
         </View>
       ) : (
         <FlatList
           data={filteredVerbs}
           keyExtractor={(item) => String(item.id)}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={s.list}
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={
-            <Text style={styles.countText}>
+            <Text style={s.countText}>
               {filteredVerbs.length} verb{filteredVerbs.length !== 1 ? 's' : ''}
               {filter !== 'all' ? ` · ${filter}` : ''}
               {search ? ` · "${search}"` : ''}
@@ -185,14 +188,14 @@ export default function VerbsScreen() {
             <VerbCard
               verb={item}
               status={getStatus(item.id)}
-              onStatusChange={(s) => handleStatusChange(item.id, s)}
+              onStatusChange={(st) => handleStatusChange(item.id, st)}
             />
           )}
           ListEmptyComponent={
-            <View style={styles.empty}>
-              <Text style={styles.emptyEmoji}>🔍</Text>
-              <Text style={styles.emptyText}>No verbs found</Text>
-              <Text style={styles.emptySubtext}>
+            <View style={s.empty}>
+              <Text style={s.emptyEmoji}>🔍</Text>
+              <Text style={s.emptyText}>No verbs found</Text>
+              <Text style={s.emptySubtext}>
                 {search ? `No results for "${search}"` : `No ${filter} verbs yet`}
               </Text>
             </View>
@@ -205,49 +208,14 @@ export default function VerbsScreen() {
 
 function CountPill({ label, value, color }: { label: string; value: number; color: string }) {
   return (
-    <View style={[styles.pill, { backgroundColor: `${color}20` }]}>
-      <Text style={[styles.pillValue, { color }]}>{value}</Text>
-      <Text style={[styles.pillLabel, { color }]}>{label}</Text>
+    <View style={[staticStyles.pill, { backgroundColor: `${color}20` }]}>
+      <Text style={[staticStyles.pillValue, { color }]}>{value}</Text>
+      <Text style={[staticStyles.pillLabel, { color }]}>{label}</Text>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg },
-
-  header: {
-    padding: SPACING.xl,
-    paddingBottom: SPACING.md,
-    gap: SPACING.sm,
-  },
-  backBtn: { marginBottom: SPACING.xs },
-  backText: { color: COLORS.primary, fontSize: FONTS.sizes.md, fontWeight: FONTS.weights.semibold },
-
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.md,
-  },
-  titleEmoji: {
-    fontSize: 42,
-    color: COLORS.primary,
-    fontWeight: FONTS.weights.heavy,
-  },
-  title: {
-    fontSize: FONTS.sizes.xxl,
-    fontWeight: FONTS.weights.heavy,
-    color: COLORS.text,
-    lineHeight: 30,
-  },
-  subtitle: {
-    fontSize: FONTS.sizes.sm,
-    color: COLORS.textSecondary,
-    marginTop: 2,
-  },
-  countRow: {
-    flexDirection: 'row',
-    gap: SPACING.sm,
-  },
+const staticStyles = StyleSheet.create({
   pill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -258,94 +226,134 @@ const styles = StyleSheet.create({
   },
   pillValue: { fontSize: FONTS.sizes.sm, fontWeight: FONTS.weights.bold },
   pillLabel: { fontSize: FONTS.sizes.xs, fontWeight: FONTS.weights.medium },
-
-  /* Search */
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginHorizontal: SPACING.xl,
-    marginBottom: SPACING.sm,
-    backgroundColor: COLORS.bgCard,
-    borderRadius: RADIUS.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingHorizontal: SPACING.md,
-  },
-  searchIcon: { fontSize: 16, marginRight: SPACING.xs },
-  searchInput: {
-    flex: 1,
-    paddingVertical: SPACING.sm,
-    color: COLORS.text,
-    fontSize: FONTS.sizes.md,
-  },
-  clearBtn: { padding: 4 },
-  clearBtnText: { fontSize: 13, color: COLORS.textMuted },
-
-  /* Filter tabs */
-  filterRow: {
-    flexDirection: 'row',
-    paddingHorizontal: SPACING.xl,
-    gap: SPACING.sm,
-    marginBottom: SPACING.md,
-  },
-  filterTab: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: SPACING.sm,
-    borderRadius: RADIUS.md,
-    backgroundColor: COLORS.bgCard,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    gap: 2,
-  },
-  filterTabActive: {
-    backgroundColor: COLORS.primaryMuted,
-    borderColor: COLORS.primary,
-  },
-  filterEmoji: { fontSize: 16 },
-  filterLabel: {
-    fontSize: FONTS.sizes.xs,
-    color: COLORS.textMuted,
-    fontWeight: FONTS.weights.medium,
-  },
-  filterLabelActive: { color: COLORS.primary },
-
-  /* List */
-  countText: {
-    fontSize: FONTS.sizes.sm,
-    color: COLORS.textMuted,
-    marginBottom: SPACING.sm,
-    fontWeight: FONTS.weights.medium,
-  },
-  list: { paddingHorizontal: SPACING.xl, paddingBottom: SPACING.xxxl },
-
-  /* Empty / Error */
-  empty: { alignItems: 'center', marginTop: 80, gap: SPACING.md, paddingHorizontal: SPACING.xl },
-  emptyEmoji: { fontSize: 52 },
-  emptyText: {
-    fontSize: FONTS.sizes.lg,
-    color: COLORS.textSecondary,
-    fontWeight: FONTS.weights.semibold,
-    textAlign: 'center',
-  },
-  emptySubtext: {
-    fontSize: FONTS.sizes.sm,
-    color: COLORS.textMuted,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  retryBtn: {
-    marginTop: SPACING.sm,
-    paddingVertical: SPACING.sm,
-    paddingHorizontal: SPACING.xl,
-    borderRadius: RADIUS.full,
-    backgroundColor: COLORS.primaryMuted,
-    borderWidth: 1,
-    borderColor: COLORS.primary,
-  },
-  retryText: {
-    color: COLORS.primary,
-    fontSize: FONTS.sizes.md,
-    fontWeight: FONTS.weights.semibold,
-  },
 });
+
+function makeStyles(C: ThemeColors) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: C.bg },
+
+    header: {
+      padding: SPACING.xl,
+      paddingBottom: SPACING.md,
+      gap: SPACING.sm,
+    },
+    backBtn: { marginBottom: SPACING.xs },
+    backText: { color: C.primary, fontSize: FONTS.sizes.md, fontWeight: FONTS.weights.semibold },
+
+    titleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: SPACING.md,
+    },
+    titleEmoji: {
+      fontSize: 42,
+      color: C.primary,
+      fontWeight: FONTS.weights.heavy,
+    },
+    title: {
+      fontSize: FONTS.sizes.xxl,
+      fontWeight: FONTS.weights.heavy,
+      color: C.text,
+      lineHeight: 30,
+    },
+    subtitle: {
+      fontSize: FONTS.sizes.sm,
+      color: C.textSecondary,
+      marginTop: 2,
+    },
+    countRow: {
+      flexDirection: 'row',
+      gap: SPACING.sm,
+    },
+
+    /* Search */
+    searchContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginHorizontal: SPACING.xl,
+      marginBottom: SPACING.sm,
+      backgroundColor: C.bgCard,
+      borderRadius: RADIUS.md,
+      borderWidth: 1,
+      borderColor: C.border,
+      paddingHorizontal: SPACING.md,
+    },
+    searchIcon: { fontSize: 16, marginRight: SPACING.xs },
+    searchInput: {
+      flex: 1,
+      paddingVertical: SPACING.sm,
+      color: C.text,
+      fontSize: FONTS.sizes.md,
+    },
+    clearBtn: { padding: 4 },
+    clearBtnText: { fontSize: 13, color: C.textMuted },
+
+    /* Filter tabs */
+    filterRow: {
+      flexDirection: 'row',
+      paddingHorizontal: SPACING.xl,
+      gap: SPACING.sm,
+      marginBottom: SPACING.md,
+    },
+    filterTab: {
+      flex: 1,
+      alignItems: 'center',
+      paddingVertical: SPACING.sm,
+      borderRadius: RADIUS.md,
+      backgroundColor: C.bgCard,
+      borderWidth: 1,
+      borderColor: C.border,
+      gap: 2,
+    },
+    filterTabActive: {
+      backgroundColor: C.primaryMuted,
+      borderColor: C.primary,
+    },
+    filterEmoji: { fontSize: 16 },
+    filterLabel: {
+      fontSize: FONTS.sizes.xs,
+      color: C.textMuted,
+      fontWeight: FONTS.weights.medium,
+    },
+    filterLabelActive: { color: C.primary },
+
+    /* List */
+    countText: {
+      fontSize: FONTS.sizes.sm,
+      color: C.textMuted,
+      marginBottom: SPACING.sm,
+      fontWeight: FONTS.weights.medium,
+    },
+    list: { paddingHorizontal: SPACING.xl, paddingBottom: SPACING.xxxl },
+
+    /* Empty / Error */
+    empty: { alignItems: 'center', marginTop: 80, gap: SPACING.md, paddingHorizontal: SPACING.xl },
+    emptyEmoji: { fontSize: 52 },
+    emptyText: {
+      fontSize: FONTS.sizes.lg,
+      color: C.textSecondary,
+      fontWeight: FONTS.weights.semibold,
+      textAlign: 'center',
+    },
+    emptySubtext: {
+      fontSize: FONTS.sizes.sm,
+      color: C.textMuted,
+      textAlign: 'center',
+      lineHeight: 20,
+    },
+    retryBtn: {
+      marginTop: SPACING.sm,
+      paddingVertical: SPACING.sm,
+      paddingHorizontal: SPACING.xl,
+      borderRadius: RADIUS.full,
+      backgroundColor: C.primaryMuted,
+      borderWidth: 1,
+      borderColor: C.primary,
+    },
+    retryText: {
+      color: C.primary,
+      fontSize: FONTS.sizes.md,
+      fontWeight: FONTS.weights.semibold,
+    },
+  });
+}

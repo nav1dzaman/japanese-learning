@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Animated
 } from 'react-native';
@@ -8,7 +8,8 @@ import { supabase } from '../../../src/lib/supabase';
 import { useAuthStore } from '../../../src/stores/authStore';
 import { Vocabulary, VocabRow, VocabStatus, QuizQuestion } from '../../../src/types';
 import { rowToVocab } from '../../../src/stores/vocabStore';
-import { COLORS, FONTS, RADIUS, SHADOWS, SPACING } from '../../../src/constants/colors';
+import { useColors } from '../../../src/hooks/useColors';
+import { FONTS, RADIUS, SHADOWS, SPACING, type ThemeColors } from '../../../src/constants/colors';
 import { ProgressBar } from '../../../src/components/ProgressBar';
 
 interface QuizAnswer {
@@ -18,364 +19,348 @@ interface QuizAnswer {
   isCorrect: boolean;
 }
 
-function shuffle<T>(arr: T[]): T[] {
-  return [...arr].sort(() => Math.random() - 0.5);
-}
-
-function buildQuestion(vocab: Vocabulary, allVocab: Vocabulary[]): QuizQuestion {
-  const correctAnswer = vocab.meaning;
-  const distractors = shuffle(allVocab.filter((v) => v.id !== vocab.id))
-    .slice(0, 3)
-    .map((v) => v.meaning);
-  const options = shuffle([correctAnswer, ...distractors]);
-  return { vocab, options, correctAnswer };
-}
-
 export default function QuizSessionScreen() {
-  const { statusFilter, questionCount, chapterId } = useLocalSearchParams<{
-    statusFilter: string;
-    questionCount: string;
-    chapterId?: string;
+  const { source, chapters, categories, status, count } = useLocalSearchParams<{
+    source?: string;
+    chapters?: string;
+    categories?: string;
+    status: string;
+    count: string;
   }>();
   const { user } = useAuthStore();
+  const C = useColors();
+  const s = useMemo(() => makeStyles(C), [C]);
 
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<QuizAnswer[]>([]);
-  const [selectedOption, setSelectedOption] = useState<string | null>(null);
-  const [revealed, setRevealed] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [startTime] = useState(Date.now());
 
-  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const [selectedOption, setSelectedOption] = useState<string | null>(null);
+  const [showResult, setShowResult] = useState(false);
+
+  const slideAnim = useRef(new Animated.Value(0)).current;
+  const startTime = useRef(Date.now());
 
   useEffect(() => {
-    buildQuiz();
-  }, []);
+    generateQuiz();
+  }, [source, chapters, categories, status, count]);
 
-  const buildQuiz = async () => {
-    if (!user) return;
+  const generateQuiz = async () => {
+    setLoading(true);
 
-    const statuses: VocabStatus[] =
-      statusFilter === 'both'
-        ? ['studying', 'studied']
-        : [statusFilter as VocabStatus];
+    if (source === 'general') {
+      // ── General Words Mode ──
+      const { data: gwData } = await supabase
+        .from('general_words')
+        .select('*');
 
-    // Step 1: Fetch all vocabulary (or just the chapter) for question pool + distractors
-    let vocabQuery = supabase.from('vocabulary').select('*');
-    if (chapterId) {
-      vocabQuery = vocabQuery.eq('chapter', parseInt(chapterId, 10));
-    }
-    const { data: allVocabData } = await vocabQuery;
-    const allVocab = (allVocabData ?? []).map((r: VocabRow) => rowToVocab(r));
-
-    if (allVocab.length < 4) {
-      setQuestions([]);
-      setLoading(false);
-      return;
-    }
-
-    // Step 2: Build the quiz word set from user_vocab_status DB (if exists),
-    //         otherwise fall back to the in-memory statusMap from the store
-    let quizKeySet: Set<string>;
-
-    const { data: statusRows, error: statusErr } = await supabase
-      .from('user_vocab_status')
-      .select('chapter, section, no')
-      .eq('user_id', user.id)
-      .in('status', statuses);
-
-    if (!statusErr && statusRows && statusRows.length > 0) {
-      // Use DB data
-      quizKeySet = new Set(
-        statusRows.map((r: { chapter: number; section: number; no: number }) =>
-          `${r.chapter}_${r.section}_${r.no}`
-        )
-      );
-      // Filter by chapter if needed
-      if (chapterId) {
-        const ch = parseInt(chapterId, 10);
-        quizKeySet = new Set(
-          [...quizKeySet].filter((k) => k.startsWith(`${ch}_`))
-        );
+      if (!gwData || gwData.length === 0) {
+        setLoading(false);
+        return;
       }
-    } else {
-      // Fall back: use in-memory statusMap
-      const { useVocabStore } = require('../../../src/stores/vocabStore');
-      const { statusMap: localMap } = useVocabStore.getState();
-      quizKeySet = new Set(
-        Object.entries(localMap)
-          .filter(([compositeId, s]) => {
-            if (!statuses.includes(s as VocabStatus)) return false;
-            if (chapterId) return compositeId.startsWith(`${chapterId}_`);
-            return true;
-          })
-          .map(([id]) => id)
-      );
+
+      const { statusMap: gwStatusMap } = (await import('../../../src/stores/generalWordStore')).useGeneralWordStore.getState();
+      const catList = (categories || 'All').split(',');
+      const isAllCat = catList.includes('All');
+
+      let pool = gwData
+        .filter((w: any) => {
+          const catMatch = isAllCat || catList.includes(w.category || 'General');
+          if (!catMatch) return false;
+          const st = gwStatusMap[w.id] || 'unread';
+          if (status === 'both') return st === 'studied' || st === 'studying';
+          return st === status;
+        })
+        .map((w: any) => ({
+          id: w.id,
+          word: w.word_japanese,
+          reading: w.word_hiragana,
+          meaning: w.word_english,
+        }));
+
+      pool.sort(() => Math.random() - 0.5);
+
+      if (count !== 'all') {
+        const c = parseInt(count, 10);
+        pool = pool.slice(0, c);
+      }
+
+      const allMeanings = Array.from(new Set(gwData.map((r: any) => r.word_english))).filter(Boolean);
+
+      const qs: QuizQuestion[] = pool.map((v) => {
+        const opts = [v.meaning];
+        while (opts.length < 4 && opts.length < allMeanings.length) {
+          const rand = allMeanings[Math.floor(Math.random() * allMeanings.length)];
+          if (!opts.includes(rand)) opts.push(rand);
+        }
+        opts.sort(() => Math.random() - 0.5);
+        return {
+          vocabId: String(v.id),
+          word: v.word,
+          reading: v.reading,
+          correctAnswer: v.meaning,
+          options: opts,
+        };
+      });
+
+      setQuestions(qs);
+      setLoading(false);
+      slideIn();
+      return;
     }
 
-    if (quizKeySet.size === 0) {
-      setQuestions([]);
+    // ── Chapter Vocabulary Mode ──
+    const chArray = (chapters || '').split(',').map(Number).filter((n) => !isNaN(n));
+
+    let query = supabase.from('vocabulary').select('*');
+    if (chArray.length > 0) {
+      query = query.in('chapter', chArray);
+    }
+    const { data } = await query;
+
+    if (!data || data.length === 0) {
       setLoading(false);
       return;
     }
 
-    // Step 3: Filter vocab to only marked words
-    const quizVocab = allVocab.filter((v) => quizKeySet.has(v.id));
-    const shuffled = shuffle(quizVocab);
-    const limit = questionCount === 'all' ? shuffled.length : parseInt(questionCount ?? '10');
-    const selected = shuffled.slice(0, limit);
+    const { statusMap } = (await import('../../../src/stores/vocabStore')).useVocabStore.getState();
 
-    // Use full vocab pool as distractors so MCQ has 4 options
-    const distractorPool = allVocab.length >= 4 ? allVocab : quizVocab;
-    setQuestions(selected.map((v) => buildQuestion(v, distractorPool)));
+    let pool = (data as VocabRow[]).map(rowToVocab).filter((v) => {
+      const st = statusMap[String(v.id)] || 'unread';
+      if (status === 'both') return st === 'studied' || st === 'studying';
+      return st === status;
+    });
+
+    pool.sort(() => Math.random() - 0.5);
+
+    if (count !== 'all') {
+      const c = parseInt(count, 10);
+      pool = pool.slice(0, c);
+    }
+
+    const allMeanings = Array.from(new Set((data as VocabRow[]).map((r) => r.meaning)));
+
+    const qs: QuizQuestion[] = pool.map((v) => {
+      const opts = [v.meaning];
+      while (opts.length < 4 && opts.length < allMeanings.length) {
+        const rand = allMeanings[Math.floor(Math.random() * allMeanings.length)];
+        if (!opts.includes(rand)) opts.push(rand);
+      }
+      opts.sort(() => Math.random() - 0.5);
+      return {
+        vocabId: String(v.id),
+        word: v.word,
+        reading: v.reading,
+        correctAnswer: v.meaning,
+        options: opts,
+      };
+    });
+
+    setQuestions(qs);
     setLoading(false);
+    slideIn();
   };
 
-  const current = questions[currentIndex];
-
-  const handleOptionPress = (option: string) => {
-    if (revealed) return;
-    setSelectedOption(option);
-    setRevealed(true);
+  const slideIn = () => {
+    slideAnim.setValue(50);
+    Animated.spring(slideAnim, {
+      toValue: 0,
+      useNativeDriver: true,
+      bounciness: 0,
+      speed: 14,
+    }).start();
   };
 
-  const handleNext = async () => {
-    if (!selectedOption || !current) return;
+  const handleSelect = (opt: string) => {
+    if (showResult) return;
+    setSelectedOption(opt);
+    setShowResult(true);
 
-    const answer: QuizAnswer = {
-      vocabId: String(current.vocab.id),
-      userAnswer: selectedOption,
-      correctAnswer: current.correctAnswer,
-      isCorrect: selectedOption === current.correctAnswer,
-    };
+    const q = questions[currentIndex];
+    const isCorrect = opt === q.correctAnswer;
 
-    const newAnswers = [...answers, answer];
+    setAnswers((prev) => [
+      ...prev,
+      { vocabId: q.vocabId, userAnswer: opt, correctAnswer: q.correctAnswer, isCorrect },
+    ]);
+  };
 
+  const handleNext = () => {
     if (currentIndex < questions.length - 1) {
-      // Animate out/in
-      Animated.sequence([
-        Animated.timing(fadeAnim, { toValue: 0, duration: 150, useNativeDriver: true }),
-        Animated.timing(fadeAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
-      ]).start();
-
-      setAnswers(newAnswers);
-      setCurrentIndex((i) => i + 1);
       setSelectedOption(null);
-      setRevealed(false);
+      setShowResult(false);
+      setCurrentIndex((prev) => prev + 1);
+      slideIn();
     } else {
-      // Quiz complete — save to Supabase
-      await saveSession(newAnswers);
+      finishQuiz();
     }
   };
 
-  const saveSession = async (finalAnswers: QuizAnswer[]) => {
-    if (!user) return;
-
-    const durationSeconds = Math.round((Date.now() - startTime) / 1000);
-    const correctCount = finalAnswers.filter((a) => a.isCorrect).length;
-
-    const { data: sessionData } = await supabase
-      .from('quiz_sessions')
-      .insert({
-        user_id: user.id,
-        total_questions: finalAnswers.length,
-        correct_answers: correctCount,
-        duration_seconds: durationSeconds,
-        source_filter: { statusFilter, chapterId: chapterId ?? null },
-      })
-      .select()
-      .single();
-
-    if (sessionData) {
-      await supabase.from('quiz_answers').insert(
-        finalAnswers.map((a) => ({
-          session_id: sessionData.id,
-          vocab_id: a.vocabId,
-          user_answer: a.userAnswer,
-          correct_answer: a.correctAnswer,
-          is_correct: a.isCorrect,
-        }))
-      );
-    }
+  const finishQuiz = () => {
+    const correctCount = answers.filter((a) => a.isCorrect).length;
+    const duration = Math.round((Date.now() - startTime.current) / 1000);
 
     router.replace({
       pathname: '/(tabs)/quiz/results',
       params: {
-        total: String(finalAnswers.length),
-        correct: String(correctCount),
-        duration: String(durationSeconds),
-        sessionId: sessionData?.id ?? '',
+        total: questions.length.toString(),
+        correct: correctCount.toString(),
+        duration: duration.toString(),
       },
     });
   };
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <ActivityIndicator color={COLORS.primary} size="large" style={{ marginTop: 100 }} />
+      <SafeAreaView style={s.center}>
+        <ActivityIndicator color={C.primary} size="large" />
       </SafeAreaView>
     );
   }
 
-  if (!current) return null;
+  if (questions.length === 0) {
+    return (
+      <SafeAreaView style={s.center}>
+        <Text style={s.errorText}>No questions could be generated.</Text>
+        <TouchableOpacity style={s.btn} onPress={() => router.back()}>
+          <Text style={s.btnText}>Go Back</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    );
+  }
 
-  const progress = (currentIndex + (revealed ? 1 : 0)) / questions.length;
+  const q = questions[currentIndex];
+  const progress = (currentIndex + 1) / questions.length;
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Top bar */}
-      <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.exitBtn}>
-          <Text style={styles.exitText}>✕ Exit</Text>
+    <SafeAreaView style={s.container}>
+      <View style={s.header}>
+        <TouchableOpacity onPress={() => router.back()} style={s.closeBtn}>
+          <Text style={s.closeText}>✕</Text>
         </TouchableOpacity>
-        <Text style={styles.counter}>
-          {currentIndex + 1} / {questions.length}
-        </Text>
-        <View style={{ width: 60 }} />
-      </View>
-
-      {/* Progress */}
-      <View style={styles.progressContainer}>
-        <ProgressBar progress={progress} color={COLORS.primary} height={6} />
-      </View>
-
-      {/* Score so far */}
-      <View style={styles.scoreRow}>
-        <Text style={[styles.scorePill, { color: COLORS.studied }]}>
-          ✓ {answers.filter((a) => a.isCorrect).length}
-        </Text>
-        <Text style={[styles.scorePill, { color: COLORS.accent }]}>
-          ✗ {answers.filter((a) => !a.isCorrect).length}
-        </Text>
-      </View>
-
-      {/* Question card */}
-      <Animated.View style={[styles.questionCard, { opacity: fadeAnim }]}>
-        <Text style={styles.questionHint}>What does this mean?</Text>
-        <Text style={styles.japaneseWord}>{current.vocab.word}</Text>
-        <Text style={styles.reading}>{current.vocab.reading}</Text>
-      </Animated.View>
-
-      {/* Options */}
-      <View style={styles.optionsContainer}>
-        {current.options.map((option, idx) => {
-          let optStyle = styles.optionBtn;
-          let textStyle = styles.optionText;
-
-          if (revealed) {
-            if (option === current.correctAnswer) {
-              optStyle = { ...optStyle, ...styles.optionCorrect };
-              textStyle = { ...textStyle, color: COLORS.correct };
-            } else if (option === selectedOption) {
-              optStyle = { ...optStyle, ...styles.optionWrong };
-              textStyle = { ...textStyle, color: COLORS.incorrect };
-            } else {
-              optStyle = { ...optStyle, opacity: 0.4 } as any;
-            }
-          }
-
-          return (
-            <TouchableOpacity
-              key={idx}
-              style={optStyle}
-              onPress={() => handleOptionPress(option)}
-              activeOpacity={revealed ? 1 : 0.8}
-            >
-              <Text style={styles.optionLetter}>
-                {String.fromCharCode(65 + idx)}
-              </Text>
-              <Text style={[textStyle, { flex: 1 }]}>{option}</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
-
-      {/* Example (shown after reveal) */}
-      {revealed && current.vocab.example_jp ? (
-        <View style={styles.exampleBox}>
-          <Text style={styles.exampleJp}>{current.vocab.example_jp}</Text>
-          <Text style={styles.exampleEn}>{current.vocab.example_en}</Text>
+        <View style={s.progressWrap}>
+          <ProgressBar progress={progress} height={8} />
+          <Text style={s.progressText}>{currentIndex + 1} / {questions.length}</Text>
         </View>
-      ) : null}
+      </View>
 
-      {/* Next button */}
-      {revealed && (
-        <TouchableOpacity style={styles.nextBtn} onPress={handleNext} activeOpacity={0.85}>
-          <Text style={styles.nextText}>
-            {currentIndex < questions.length - 1 ? 'Next →' : 'See Results 🎉'}
-          </Text>
-        </TouchableOpacity>
-      )}
+      <Animated.ScrollView
+        contentContainerStyle={s.content}
+        style={{ transform: [{ translateY: slideAnim }] }}
+      >
+        <View style={s.card}>
+          <Text style={s.word}>{q.word}</Text>
+          <Text style={s.reading}>{q.reading}</Text>
+        </View>
+
+        <View style={s.options}>
+          {q.options.map((opt, i) => {
+            const isSelected = selectedOption === opt;
+            const isCorrectAnswer = opt === q.correctAnswer;
+
+            let btnStyle: any = s.optBtn;
+            let textStyle: any = s.optText;
+
+            if (showResult) {
+              if (isCorrectAnswer) {
+                btnStyle = [s.optBtn, s.optBtnCorrect];
+                textStyle = [s.optText, s.optTextCorrect];
+              } else if (isSelected) {
+                btnStyle = [s.optBtn, s.optBtnWrong];
+                textStyle = [s.optText, s.optTextWrong];
+              }
+            } else if (isSelected) {
+              btnStyle = [s.optBtn, s.optBtnSelected];
+            }
+
+            return (
+              <TouchableOpacity
+                key={i}
+                style={btnStyle}
+                onPress={() => handleSelect(opt)}
+                disabled={showResult}
+                activeOpacity={0.7}
+              >
+                <Text style={textStyle}>{opt}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {showResult && (
+          <TouchableOpacity
+            style={s.nextBtn}
+            onPress={handleNext}
+            activeOpacity={0.8}
+          >
+            <Text style={s.nextBtnText}>
+              {currentIndex < questions.length - 1 ? 'Next' : 'Finish'}
+            </Text>
+          </TouchableOpacity>
+        )}
+      </Animated.ScrollView>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg, padding: SPACING.xl },
-  topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.md },
-  exitBtn: { padding: SPACING.sm },
-  exitText: { color: COLORS.textMuted, fontSize: FONTS.sizes.sm },
-  counter: { fontSize: FONTS.sizes.md, fontWeight: FONTS.weights.bold, color: COLORS.textSecondary },
-  progressContainer: { marginBottom: SPACING.sm },
-  scoreRow: { flexDirection: 'row', gap: SPACING.lg, marginBottom: SPACING.xl, justifyContent: 'center' },
-  scorePill: { fontSize: FONTS.sizes.lg, fontWeight: FONTS.weights.bold },
-  questionCard: {
-    backgroundColor: COLORS.bgCard,
-    borderRadius: RADIUS.xxl,
-    padding: SPACING.xxl,
-    alignItems: 'center',
-    marginBottom: SPACING.xl,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    gap: SPACING.sm,
-    ...SHADOWS.card,
-  },
-  questionHint: { fontSize: FONTS.sizes.sm, color: COLORS.textMuted, textTransform: 'uppercase', letterSpacing: 1 },
-  japaneseWord: { fontSize: FONTS.sizes.japaneseXl, fontWeight: FONTS.weights.heavy, color: COLORS.text, letterSpacing: 3 },
-  reading: { fontSize: FONTS.sizes.lg, color: COLORS.primary, fontWeight: FONTS.weights.medium },
-  optionsContainer: { gap: SPACING.md, marginBottom: SPACING.md },
-  optionBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: SPACING.md,
-    backgroundColor: COLORS.bgCard,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.lg,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  optionCorrect: { backgroundColor: COLORS.correctMuted, borderColor: COLORS.correct },
-  optionWrong: { backgroundColor: COLORS.incorrectMuted, borderColor: COLORS.incorrect },
-  optionLetter: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: COLORS.bgElevated,
-    textAlign: 'center',
-    lineHeight: 28,
-    fontSize: FONTS.sizes.sm,
-    fontWeight: FONTS.weights.bold,
-    color: COLORS.textSecondary,
-  },
-  optionText: { fontSize: FONTS.sizes.md, color: COLORS.text, fontWeight: FONTS.weights.medium },
-  exampleBox: {
-    backgroundColor: COLORS.primaryMuted,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.lg,
-    marginBottom: SPACING.lg,
-    gap: SPACING.xs,
-    borderWidth: 1,
-    borderColor: COLORS.borderActive,
-  },
-  exampleJp: { fontSize: FONTS.sizes.md, color: COLORS.text, lineHeight: 22 },
-  exampleEn: { fontSize: FONTS.sizes.sm, color: COLORS.textSecondary, fontStyle: 'italic' },
-  nextBtn: {
-    backgroundColor: COLORS.primary,
-    borderRadius: RADIUS.lg,
-    paddingVertical: SPACING.lg,
-    alignItems: 'center',
-    ...SHADOWS.card,
-  },
-  nextText: { color: '#fff', fontSize: FONTS.sizes.lg, fontWeight: FONTS.weights.bold },
-});
+function makeStyles(C: ThemeColors) {
+  return StyleSheet.create({
+    center: { flex: 1, backgroundColor: C.bg, alignItems: 'center', justifyContent: 'center' },
+    errorText: { fontSize: FONTS.sizes.md, color: C.text, marginBottom: SPACING.md },
+    btn: { padding: SPACING.md, backgroundColor: C.primaryMuted, borderRadius: RADIUS.md },
+    btnText: { color: C.primary, fontWeight: FONTS.weights.bold },
+    container: { flex: 1, backgroundColor: C.bg },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: SPACING.xl,
+      borderBottomWidth: 1,
+      borderBottomColor: C.border,
+      gap: SPACING.md,
+    },
+    closeBtn: { padding: 4 },
+    closeText: { fontSize: 20, color: C.textMuted },
+    progressWrap: { flex: 1, gap: SPACING.xs },
+    progressText: { fontSize: 10, color: C.textMuted, textAlign: 'right', fontWeight: FONTS.weights.bold },
+    content: { padding: SPACING.xl, paddingBottom: 100 },
+    card: {
+      backgroundColor: C.bgCard,
+      borderRadius: RADIUS.xl,
+      padding: SPACING.xxxl,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: C.border,
+      marginBottom: SPACING.xxl,
+      minHeight: 200,
+      ...SHADOWS.card,
+    },
+    word: { fontSize: 42, fontWeight: FONTS.weights.heavy, color: C.text, marginBottom: SPACING.sm, textAlign: 'center' },
+    reading: { fontSize: FONTS.sizes.lg, color: C.primary, fontWeight: FONTS.weights.semibold },
+    options: { gap: SPACING.md },
+    optBtn: {
+      backgroundColor: C.bgCard,
+      borderWidth: 2,
+      borderColor: C.border,
+      borderRadius: RADIUS.lg,
+      padding: SPACING.lg,
+      alignItems: 'center',
+    },
+    optBtnSelected: { borderColor: C.primary, backgroundColor: C.primaryMuted },
+    optBtnCorrect: { borderColor: C.studied, backgroundColor: C.studiedMuted },
+    optBtnWrong: { borderColor: '#FF4D4D', backgroundColor: 'rgba(255,77,77,0.1)' },
+    optText: { fontSize: FONTS.sizes.md, color: C.text, fontWeight: FONTS.weights.medium, textAlign: 'center' },
+    optTextCorrect: { color: C.studied, fontWeight: FONTS.weights.bold },
+    optTextWrong: { color: '#FF4D4D' },
+    nextBtn: {
+      marginTop: SPACING.xxl,
+      backgroundColor: C.primary,
+      padding: SPACING.lg,
+      borderRadius: RADIUS.lg,
+      alignItems: 'center',
+      ...SHADOWS.card,
+    },
+    nextBtnText: { color: '#fff', fontSize: FONTS.sizes.lg, fontWeight: FONTS.weights.bold },
+  });
+}

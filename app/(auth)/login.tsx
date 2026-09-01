@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -12,7 +12,9 @@ import {
   ScrollView,
 } from 'react-native';
 import { useAuthStore } from '../../src/stores/authStore';
-import { COLORS, FONTS, RADIUS, SPACING } from '../../src/constants/colors';
+import { useColors } from '../../src/hooks/useColors';
+import { useThemeStore } from '../../src/stores/themeStore';
+import { FONTS, RADIUS, SPACING, type ThemeColors } from '../../src/constants/colors';
 import { StatusBar } from 'expo-status-bar';
 
 export default function LoginScreen() {
@@ -20,6 +22,9 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const { signIn, signUp, loading } = useAuthStore();
+  const C = useColors();
+  const s = useMemo(() => makeStyles(C), [C]);
+  const isDark = useThemeStore((st) => st.scheme) === 'dark';
 
   const handleSubmit = async () => {
     if (!email.trim()) {
@@ -43,34 +48,34 @@ export default function LoginScreen() {
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={s.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <StatusBar style="light" />
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+      <StatusBar style={isDark ? 'light' : 'dark'} />
+      <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
         {/* Logo / Header */}
-        <View style={styles.logoSection}>
-          <View style={styles.logoCircle}>
-            <Text style={styles.logoEmoji}>🎌</Text>
+        <View style={s.logoSection}>
+          <View style={s.logoCircle}>
+            <Text style={s.logoEmoji}>🎌</Text>
           </View>
-          <Text style={styles.appName}>日本語</Text>
-          <Text style={styles.appSubtitle}>Japanese Learning</Text>
+          <Text style={s.appName}>日本語</Text>
+          <Text style={s.appSubtitle}>Japanese Learning</Text>
         </View>
 
         {/* Card */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>{isLogin ? 'Welcome Back' : 'Create Account'}</Text>
-          <Text style={styles.cardSubtitle}>
+        <View style={s.card}>
+          <Text style={s.cardTitle}>{isLogin ? 'Welcome Back' : 'Create Account'}</Text>
+          <Text style={s.cardSubtitle}>
             {isLogin ? 'Sign in to continue your journey' : 'Start your Japanese journey'}
           </Text>
 
-          <View style={styles.form}>
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Email</Text>
+          <View style={s.form}>
+            <View style={s.inputGroup}>
+              <Text style={s.inputLabel}>Email</Text>
               <TextInput
-                style={styles.input}
+                style={s.input}
                 placeholder="you@example.com"
-                placeholderTextColor={COLORS.textMuted}
+                placeholderTextColor={C.textMuted}
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
@@ -79,12 +84,12 @@ export default function LoginScreen() {
               />
             </View>
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Password</Text>
+            <View style={s.inputGroup}>
+              <Text style={s.inputLabel}>Password</Text>
               <TextInput
-                style={styles.input}
+                style={s.input}
                 placeholder="••••••"
-                placeholderTextColor={COLORS.textMuted}
+                placeholderTextColor={C.textMuted}
                 value={password}
                 onChangeText={(t) => setPassword(t.replace(/\D/g, '').slice(0, 6))}
                 secureTextEntry
@@ -92,11 +97,11 @@ export default function LoginScreen() {
                 maxLength={6}
                 autoComplete={isLogin ? 'current-password' : 'new-password'}
               />
-              <Text style={styles.inputHint}>6-digit numeric PIN</Text>
+              <Text style={s.inputHint}>6-digit numeric PIN</Text>
             </View>
 
             <TouchableOpacity
-              style={styles.submitButton}
+              style={s.submitButton}
               onPress={handleSubmit}
               disabled={loading}
               activeOpacity={0.85}
@@ -104,140 +109,142 @@ export default function LoginScreen() {
               {loading ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.submitText}>{isLogin ? 'Sign In' : 'Sign Up'}</Text>
+                <Text style={s.submitText}>{isLogin ? 'Sign In' : 'Sign Up'}</Text>
               )}
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity onPress={() => setIsLogin((v) => !v)} style={styles.switchRow}>
-            <Text style={styles.switchText}>
+          <TouchableOpacity onPress={() => setIsLogin((v) => !v)} style={s.switchRow}>
+            <Text style={s.switchText}>
               {isLogin ? "Don't have an account? " : 'Already have an account? '}
-              <Text style={styles.switchLink}>{isLogin ? 'Sign Up' : 'Sign In'}</Text>
+              <Text style={s.switchLink}>{isLogin ? 'Sign Up' : 'Sign In'}</Text>
             </Text>
           </TouchableOpacity>
         </View>
 
         {/* Decorative Japanese characters */}
-        <Text style={styles.decorative}>学ぶ · 覚える · 上達する</Text>
+        <Text style={s.decorative}>学ぶ · 覚える · 上達する</Text>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.bg,
-  },
-  scroll: {
-    flexGrow: 1,
-    padding: SPACING.xl,
-    justifyContent: 'center',
-  },
-  logoSection: {
-    alignItems: 'center',
-    marginBottom: SPACING.xxxl,
-  },
-  logoCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: COLORS.primaryMuted,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: SPACING.md,
-    borderWidth: 1,
-    borderColor: COLORS.borderActive,
-  },
-  logoEmoji: {
-    fontSize: 40,
-  },
-  appName: {
-    fontSize: FONTS.sizes.xxxl,
-    fontWeight: FONTS.weights.heavy,
-    color: COLORS.text,
-    letterSpacing: 4,
-  },
-  appSubtitle: {
-    fontSize: FONTS.sizes.sm,
-    color: COLORS.textSecondary,
-    letterSpacing: 2,
-    marginTop: SPACING.xs,
-    textTransform: 'uppercase',
-  },
-  card: {
-    backgroundColor: COLORS.bgCard,
-    borderRadius: RADIUS.xxl,
-    padding: SPACING.xxl,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  cardTitle: {
-    fontSize: FONTS.sizes.xxl,
-    fontWeight: FONTS.weights.bold,
-    color: COLORS.text,
-    marginBottom: SPACING.xs,
-  },
-  cardSubtitle: {
-    fontSize: FONTS.sizes.sm,
-    color: COLORS.textSecondary,
-    marginBottom: SPACING.xxl,
-  },
-  form: {
-    gap: SPACING.lg,
-  },
-  inputGroup: {
-    gap: SPACING.xs,
-  },
-  inputLabel: {
-    fontSize: FONTS.sizes.sm,
-    color: COLORS.textSecondary,
-    fontWeight: FONTS.weights.medium,
-  },
-  input: {
-    backgroundColor: COLORS.bgInput,
-    borderRadius: RADIUS.md,
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
-    color: COLORS.text,
-    fontSize: FONTS.sizes.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  submitButton: {
-    backgroundColor: COLORS.primary,
-    borderRadius: RADIUS.md,
-    paddingVertical: SPACING.lg,
-    alignItems: 'center',
-    marginTop: SPACING.sm,
-  },
-  submitText: {
-    color: '#fff',
-    fontSize: FONTS.sizes.lg,
-    fontWeight: FONTS.weights.bold,
-  },
-  switchRow: {
-    marginTop: SPACING.xl,
-    alignItems: 'center',
-  },
-  switchText: {
-    fontSize: FONTS.sizes.sm,
-    color: COLORS.textSecondary,
-  },
-  switchLink: {
-    color: COLORS.primary,
-    fontWeight: FONTS.weights.semibold,
-  },
-  inputHint: {
-    fontSize: FONTS.sizes.xs ?? 11,
-    color: COLORS.textMuted,
-    marginTop: 2,
-  },
-  decorative: {
-    textAlign: 'center',
-    marginTop: SPACING.xxl,
-    fontSize: FONTS.sizes.sm,
-    color: COLORS.textMuted,
-    letterSpacing: 2,
-  },
-});
+function makeStyles(C: ThemeColors) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: C.bg,
+    },
+    scroll: {
+      flexGrow: 1,
+      padding: SPACING.xl,
+      justifyContent: 'center',
+    },
+    logoSection: {
+      alignItems: 'center',
+      marginBottom: SPACING.xxxl,
+    },
+    logoCircle: {
+      width: 80,
+      height: 80,
+      borderRadius: 40,
+      backgroundColor: C.primaryMuted,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: SPACING.md,
+      borderWidth: 1,
+      borderColor: C.borderActive,
+    },
+    logoEmoji: {
+      fontSize: 40,
+    },
+    appName: {
+      fontSize: FONTS.sizes.xxxl,
+      fontWeight: FONTS.weights.heavy,
+      color: C.text,
+      letterSpacing: 4,
+    },
+    appSubtitle: {
+      fontSize: FONTS.sizes.sm,
+      color: C.textSecondary,
+      letterSpacing: 2,
+      marginTop: SPACING.xs,
+      textTransform: 'uppercase',
+    },
+    card: {
+      backgroundColor: C.bgCard,
+      borderRadius: RADIUS.xxl,
+      padding: SPACING.xxl,
+      borderWidth: 1,
+      borderColor: C.border,
+    },
+    cardTitle: {
+      fontSize: FONTS.sizes.xxl,
+      fontWeight: FONTS.weights.bold,
+      color: C.text,
+      marginBottom: SPACING.xs,
+    },
+    cardSubtitle: {
+      fontSize: FONTS.sizes.sm,
+      color: C.textSecondary,
+      marginBottom: SPACING.xxl,
+    },
+    form: {
+      gap: SPACING.lg,
+    },
+    inputGroup: {
+      gap: SPACING.xs,
+    },
+    inputLabel: {
+      fontSize: FONTS.sizes.sm,
+      color: C.textSecondary,
+      fontWeight: FONTS.weights.medium,
+    },
+    input: {
+      backgroundColor: C.bgInput,
+      borderRadius: RADIUS.md,
+      paddingHorizontal: SPACING.lg,
+      paddingVertical: SPACING.md,
+      color: C.text,
+      fontSize: FONTS.sizes.md,
+      borderWidth: 1,
+      borderColor: C.border,
+    },
+    submitButton: {
+      backgroundColor: C.primary,
+      borderRadius: RADIUS.md,
+      paddingVertical: SPACING.lg,
+      alignItems: 'center',
+      marginTop: SPACING.sm,
+    },
+    submitText: {
+      color: '#fff',
+      fontSize: FONTS.sizes.lg,
+      fontWeight: FONTS.weights.bold,
+    },
+    switchRow: {
+      marginTop: SPACING.xl,
+      alignItems: 'center',
+    },
+    switchText: {
+      fontSize: FONTS.sizes.sm,
+      color: C.textSecondary,
+    },
+    switchLink: {
+      color: C.primary,
+      fontWeight: FONTS.weights.semibold,
+    },
+    inputHint: {
+      fontSize: FONTS.sizes.xs ?? 11,
+      color: C.textMuted,
+      marginTop: 2,
+    },
+    decorative: {
+      textAlign: 'center',
+      marginTop: SPACING.xxl,
+      fontSize: FONTS.sizes.sm,
+      color: C.textMuted,
+      letterSpacing: 2,
+    },
+  });
+}

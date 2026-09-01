@@ -10,7 +10,7 @@
     "splash": {
       "image": "./assets/images/splash-icon.png",
       "resizeMode": "cover",
-      "backgroundColor": "#0D0D1A"
+      "backgroundColor": "#5560D4"
     },
     "ios": {
       "supportsTablet": true
@@ -18,7 +18,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundColor": "#0D0D1A"
+        "backgroundColor": "#6355E0"
       },
       "package": "com.navidzaman01.japaneselearning"
     },
@@ -27,7 +27,10 @@
       "expo-secure-store",
       "expo-audio",
       "expo-font",
-      "expo-asset"
+      "expo-asset",
+      "expo-image",
+      "expo-status-bar",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true

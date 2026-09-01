@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Section } from '../types';
-import { COLORS, FONTS, RADIUS, SHADOWS, SPACING } from '../constants/colors';
+import { useColors } from '../hooks/useColors';
+import { FONTS, RADIUS, SHADOWS, SPACING, type ThemeColors } from '../constants/colors';
 import { ProgressBar } from './ProgressBar';
 
 interface SectionCardProps {
@@ -19,30 +20,32 @@ export function SectionCard({
   studyingCount,
   onPress,
 }: SectionCardProps) {
+  const C = useColors();
+  const s = useMemo(() => makeStyles(C), [C]);
   const progress = totalCount > 0 ? studiedCount / totalCount : 0;
   const unreadCount = totalCount - studiedCount - studyingCount;
 
   return (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.85} style={styles.card}>
-      <View style={styles.header}>
-        <View style={styles.sectionMeta}>
-          <Text style={styles.sectionNum}>§ {section.section}</Text>
-          <Text style={styles.sectionName}>{section.section_name}</Text>
+    <TouchableOpacity onPress={onPress} activeOpacity={0.85} style={s.card}>
+      <View style={s.header}>
+        <View style={s.sectionMeta}>
+          <Text style={s.sectionNum}>§ {section.section}</Text>
+          <Text style={s.sectionName}>{section.section_name}</Text>
         </View>
-        <Text style={styles.arrow}>›</Text>
+        <Text style={s.arrow}>›</Text>
       </View>
 
-      <View style={styles.pills}>
-        <Pill value={studiedCount} label="Studied" color={COLORS.studied} bg={COLORS.studiedMuted} />
-        <Pill value={studyingCount} label="Studying" color={COLORS.studying} bg={COLORS.studyingMuted} />
-        <Pill value={unreadCount} label="Unread" color={COLORS.unread} bg={COLORS.unreadMuted} />
-        <Pill value={totalCount} label="Total" color={COLORS.primary} bg={COLORS.primaryMuted} />
+      <View style={s.pills}>
+        <Pill value={studiedCount} label="Studied" color={C.studied} bg={C.studiedMuted} />
+        <Pill value={studyingCount} label="Studying" color={C.studying} bg={C.studyingMuted} />
+        <Pill value={unreadCount} label="Unread" color={C.unread} bg={C.unreadMuted} />
+        <Pill value={totalCount} label="Total" color={C.primary} bg={C.primaryMuted} />
       </View>
 
       <ProgressBar
         progress={progress}
-        color={COLORS.studied}
-        backgroundColor={COLORS.bgElevated}
+        color={C.studied}
+        backgroundColor={C.bgElevated}
         height={4}
       />
     </TouchableOpacity>
@@ -51,54 +54,59 @@ export function SectionCard({
 
 function Pill({ value, label, color, bg }: { value: number; label: string; color: string; bg: string }) {
   return (
-    <View style={[styles.pill, { backgroundColor: bg }]}>
-      <Text style={[styles.pillValue, { color }]}>{value}</Text>
-      <Text style={[styles.pillLabel, { color }]}>{label}</Text>
+    <View style={[staticStyles.pill, { backgroundColor: bg }]}>
+      <Text style={[staticStyles.pillValue, { color }]}>{value}</Text>
+      <Text style={[staticStyles.pillLabel, { color }]}>{label}</Text>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  card: {
-    backgroundColor: COLORS.bgCard,
-    borderRadius: RADIUS.lg,
-    padding: SPACING.lg,
-    marginBottom: SPACING.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    gap: SPACING.md,
-    ...SHADOWS.card,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  sectionMeta: {
-    flex: 1,
-    gap: 2,
-  },
-  sectionNum: {
-    fontSize: FONTS.sizes.xs,
-    color: COLORS.primary,
-    fontWeight: FONTS.weights.semibold,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  sectionName: {
-    fontSize: FONTS.sizes.lg,
-    fontWeight: FONTS.weights.bold,
-    color: COLORS.text,
-  },
-  arrow: {
-    fontSize: 28,
-    color: COLORS.primary,
-    fontWeight: FONTS.weights.light,
-  },
-  pills: {
-    flexDirection: 'row',
-    gap: SPACING.xs,
-    flexWrap: 'wrap',
-  },
+function makeStyles(C: ThemeColors) {
+  return StyleSheet.create({
+    card: {
+      backgroundColor: C.bgCard,
+      borderRadius: RADIUS.lg,
+      padding: SPACING.lg,
+      marginBottom: SPACING.md,
+      borderWidth: 1,
+      borderColor: C.border,
+      gap: SPACING.md,
+      ...SHADOWS.card,
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    sectionMeta: {
+      flex: 1,
+      gap: 2,
+    },
+    sectionNum: {
+      fontSize: FONTS.sizes.xs,
+      color: C.primary,
+      fontWeight: FONTS.weights.semibold,
+      textTransform: 'uppercase',
+      letterSpacing: 1,
+    },
+    sectionName: {
+      fontSize: FONTS.sizes.lg,
+      fontWeight: FONTS.weights.bold,
+      color: C.text,
+    },
+    arrow: {
+      fontSize: 28,
+      color: C.primary,
+      fontWeight: FONTS.weights.light,
+    },
+    pills: {
+      flexDirection: 'row',
+      gap: SPACING.xs,
+      flexWrap: 'wrap',
+    },
+  });
+}
+
+const staticStyles = StyleSheet.create({
   pill: {
     flexDirection: 'row',
     alignItems: 'center',

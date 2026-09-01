@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   View, Text, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity
 } from 'react-native';
@@ -7,7 +7,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { supabase } from '../../../src/lib/supabase';
 import { useVocabStore } from '../../../src/stores/vocabStore';
 import { Chapter, VocabRow } from '../../../src/types';
-import { COLORS, FONTS, RADIUS, SPACING, SHADOWS } from '../../../src/constants/colors';
+import { useColors } from '../../../src/hooks/useColors';
+import { FONTS, RADIUS, SPACING, SHADOWS, type ThemeColors } from '../../../src/constants/colors';
 
 interface ChapterStats {
   chapter: number;
@@ -20,6 +21,8 @@ interface ChapterStats {
 
 export default function VocabularyScreen() {
   const { statusMap } = useVocabStore();
+  const C = useColors();
+  const s = useMemo(() => makeStyles(C), [C]);
   const [chapterStats, setChapterStats] = useState<ChapterStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -34,27 +37,18 @@ export default function VocabularyScreen() {
       .from('vocabulary')
       .select('chapter, chapter_name, section, section_name, no, word_kanji, reading, meaning');
 
-    console.log('[VocabScreen] raw result:', {
-      rowCount: data?.length ?? 0,
-      firstRow: data?.[0] ?? null,
-      error: fetchError?.message ?? null,
-    });
-
     if (fetchError) {
-      console.error('[VocabScreen] error:', fetchError.message);
       setError(fetchError.message);
       setLoading(false);
       return;
     }
 
     if (!data || data.length === 0) {
-      console.warn('[VocabScreen] table is empty — no rows in vocabulary');
       setChapterStats([]);
       setLoading(false);
       return;
     }
 
-    // Group by chapter number
     const chaptersMap: Record<number, ChapterStats> = {};
     for (const row of data as VocabRow[]) {
       if (!chaptersMap[row.chapter]) {
@@ -75,7 +69,6 @@ export default function VocabularyScreen() {
       if (status === 'studying') stat.studyingCount++;
     }
 
-    // Count unique sections per chapter
     const sectionSets: Record<number, Set<number>> = {};
     for (const row of data as VocabRow[]) {
       if (!sectionSets[row.chapter]) sectionSets[row.chapter] = new Set();
@@ -91,25 +84,25 @@ export default function VocabularyScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Vocabulary</Text>
-        <Text style={styles.subtitle}>Browse by chapter & section</Text>
+    <SafeAreaView style={s.container}>
+      <View style={s.header}>
+        <Text style={s.title}>Vocabulary</Text>
+        <Text style={s.subtitle}>Browse by chapter & section</Text>
       </View>
 
       {loading ? (
-        <ActivityIndicator color={COLORS.primary} size="large" style={{ marginTop: 60 }} />
+        <ActivityIndicator color={C.primary} size="large" style={{ marginTop: 60 }} />
       ) : error ? (
-        <View style={styles.empty}>
-          <Text style={styles.emptyEmoji}>⚠️</Text>
-          <Text style={styles.emptyText}>Database Error</Text>
-          <Text style={styles.emptySubtext}>{error}</Text>
+        <View style={s.empty}>
+          <Text style={s.emptyEmoji}>⚠️</Text>
+          <Text style={s.emptyText}>Database Error</Text>
+          <Text style={s.emptySubtext}>{error}</Text>
         </View>
       ) : (
         <FlatList
           data={chapterStats}
           keyExtractor={(item) => String(item.chapter)}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={s.list}
           showsVerticalScrollIndicator={false}
           renderItem={({ item }) => {
             const progress = item.totalVocab > 0
@@ -117,46 +110,46 @@ export default function VocabularyScreen() {
               : 0;
             return (
               <TouchableOpacity
-                style={styles.card}
+                style={s.card}
                 onPress={() => router.push(`/(tabs)/vocabulary/${item.chapter}`)}
                 activeOpacity={0.85}
               >
-                <View style={styles.cardTop}>
-                  <View style={styles.chapterBadge}>
-                    <Text style={styles.chapterNum}>Ch.{item.chapter}</Text>
+                <View style={s.cardTop}>
+                  <View style={s.chapterBadge}>
+                    <Text style={s.chapterNum}>Ch.{item.chapter}</Text>
                   </View>
-                  <View style={styles.cardInfo}>
-                    <Text style={styles.cardTitle}>{item.chapter_name}</Text>
-                    <Text style={styles.cardMeta}>
+                  <View style={s.cardInfo}>
+                    <Text style={s.cardTitle}>{item.chapter_name}</Text>
+                    <Text style={s.cardMeta}>
                       {item.sectionCount} section{item.sectionCount !== 1 ? 's' : ''} · {item.totalVocab} words
                     </Text>
                   </View>
-                  <Text style={styles.arrow}>›</Text>
+                  <Text style={s.arrow}>›</Text>
                 </View>
-                <View style={styles.progressRow}>
-                  <View style={styles.progressBg}>
-                    <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
+                <View style={s.progressRow}>
+                  <View style={s.progressBg}>
+                    <View style={[s.progressFill, { width: `${progress * 100}%` }]} />
                   </View>
-                  <Text style={styles.progressLabel}>
+                  <Text style={s.progressLabel}>
                     {item.studiedCount}/{item.totalVocab} studied
                   </Text>
                 </View>
-                <View style={styles.pillRow}>
-                  <View style={[styles.pill, { backgroundColor: COLORS.studyingMuted }]}>
-                    <Text style={[styles.pillText, { color: COLORS.studying }]}>✏️ {item.studyingCount}</Text>
+                <View style={s.pillRow}>
+                  <View style={[s.pill, { backgroundColor: C.studyingMuted }]}>
+                    <Text style={[s.pillText, { color: C.studying }]}>✏️ {item.studyingCount}</Text>
                   </View>
-                  <View style={[styles.pill, { backgroundColor: COLORS.studiedMuted }]}>
-                    <Text style={[styles.pillText, { color: COLORS.studied }]}>✅ {item.studiedCount}</Text>
+                  <View style={[s.pill, { backgroundColor: C.studiedMuted }]}>
+                    <Text style={[s.pillText, { color: C.studied }]}>✅ {item.studiedCount}</Text>
                   </View>
                 </View>
               </TouchableOpacity>
             );
           }}
           ListEmptyComponent={
-            <View style={styles.empty}>
-              <Text style={styles.emptyEmoji}>📭</Text>
-              <Text style={styles.emptyText}>No vocabulary found</Text>
-              <Text style={styles.emptySubtext}>Add data to the vocabulary table in Supabase</Text>
+            <View style={s.empty}>
+              <Text style={s.emptyEmoji}>📭</Text>
+              <Text style={s.emptyText}>No vocabulary found</Text>
+              <Text style={s.emptySubtext}>Add data to the vocabulary table in Supabase</Text>
             </View>
           }
         />
@@ -165,57 +158,59 @@ export default function VocabularyScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg },
-  header: { padding: SPACING.xl, paddingBottom: SPACING.sm },
-  title: { fontSize: FONTS.sizes.xxl, fontWeight: FONTS.weights.heavy, color: COLORS.text },
-  subtitle: { fontSize: FONTS.sizes.sm, color: COLORS.textSecondary, marginTop: 2 },
-  list: { paddingHorizontal: SPACING.xl, paddingBottom: SPACING.xxxl },
-  card: {
-    backgroundColor: COLORS.bgCard,
-    borderRadius: RADIUS.xl,
-    padding: SPACING.xl,
-    marginBottom: SPACING.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    gap: SPACING.md,
-    ...SHADOWS.card,
-  },
-  cardTop: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
-  chapterBadge: {
-    width: 48,
-    height: 48,
-    borderRadius: RADIUS.md,
-    backgroundColor: COLORS.primaryMuted,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.borderActive,
-  },
-  chapterNum: { fontSize: FONTS.sizes.xs, color: COLORS.primary, fontWeight: FONTS.weights.bold },
-  cardInfo: { flex: 1 },
-  cardTitle: { fontSize: FONTS.sizes.lg, fontWeight: FONTS.weights.bold, color: COLORS.text },
-  cardMeta: { fontSize: FONTS.sizes.sm, color: COLORS.textMuted, marginTop: 2 },
-  arrow: { fontSize: 22, color: COLORS.textMuted },
-  progressRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
-  progressBg: {
-    flex: 1,
-    height: 6,
-    backgroundColor: COLORS.border,
-    borderRadius: RADIUS.full,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: COLORS.studied,
-    borderRadius: RADIUS.full,
-  },
-  progressLabel: { fontSize: FONTS.sizes.xs, color: COLORS.textMuted, width: 80, textAlign: 'right' },
-  pillRow: { flexDirection: 'row', gap: SPACING.sm },
-  pill: { paddingHorizontal: SPACING.sm, paddingVertical: 3, borderRadius: RADIUS.full },
-  pillText: { fontSize: FONTS.sizes.xs, fontWeight: FONTS.weights.semibold },
-  empty: { alignItems: 'center', marginTop: 80, gap: SPACING.md },
-  emptyEmoji: { fontSize: 48 },
-  emptyText: { fontSize: FONTS.sizes.lg, color: COLORS.textSecondary, fontWeight: FONTS.weights.semibold },
-  emptySubtext: { fontSize: FONTS.sizes.sm, color: COLORS.textMuted, textAlign: 'center', paddingHorizontal: SPACING.xl },
-});
+function makeStyles(C: ThemeColors) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: C.bg },
+    header: { padding: SPACING.xl, paddingBottom: SPACING.sm },
+    title: { fontSize: FONTS.sizes.xxl, fontWeight: FONTS.weights.heavy, color: C.text },
+    subtitle: { fontSize: FONTS.sizes.sm, color: C.textSecondary, marginTop: 2 },
+    list: { paddingHorizontal: SPACING.xl, paddingBottom: SPACING.xxxl },
+    card: {
+      backgroundColor: C.bgCard,
+      borderRadius: RADIUS.xl,
+      padding: SPACING.xl,
+      marginBottom: SPACING.md,
+      borderWidth: 1,
+      borderColor: C.border,
+      gap: SPACING.md,
+      ...SHADOWS.card,
+    },
+    cardTop: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
+    chapterBadge: {
+      width: 48,
+      height: 48,
+      borderRadius: RADIUS.md,
+      backgroundColor: C.primaryMuted,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: C.borderActive,
+    },
+    chapterNum: { fontSize: FONTS.sizes.xs, color: C.primary, fontWeight: FONTS.weights.bold },
+    cardInfo: { flex: 1 },
+    cardTitle: { fontSize: FONTS.sizes.lg, fontWeight: FONTS.weights.bold, color: C.text },
+    cardMeta: { fontSize: FONTS.sizes.sm, color: C.textMuted, marginTop: 2 },
+    arrow: { fontSize: 22, color: C.textMuted },
+    progressRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+    progressBg: {
+      flex: 1,
+      height: 6,
+      backgroundColor: C.border,
+      borderRadius: RADIUS.full,
+      overflow: 'hidden',
+    },
+    progressFill: {
+      height: '100%',
+      backgroundColor: C.studied,
+      borderRadius: RADIUS.full,
+    },
+    progressLabel: { fontSize: FONTS.sizes.xs, color: C.textMuted, width: 80, textAlign: 'right' },
+    pillRow: { flexDirection: 'row', gap: SPACING.sm },
+    pill: { paddingHorizontal: SPACING.sm, paddingVertical: 3, borderRadius: RADIUS.full },
+    pillText: { fontSize: FONTS.sizes.xs, fontWeight: FONTS.weights.semibold },
+    empty: { alignItems: 'center', marginTop: 80, gap: SPACING.md },
+    emptyEmoji: { fontSize: 48 },
+    emptyText: { fontSize: FONTS.sizes.lg, color: C.textSecondary, fontWeight: FONTS.weights.semibold },
+    emptySubtext: { fontSize: FONTS.sizes.sm, color: C.textMuted, textAlign: 'center', paddingHorizontal: SPACING.xl },
+  });
+}

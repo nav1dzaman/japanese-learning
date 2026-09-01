@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, FlatList, ActivityIndicator,
   TouchableOpacity, TextInput,
@@ -10,7 +10,8 @@ import { useAuthStore } from '../../../../src/stores/authStore';
 import { useVocabStore, rowToVocab } from '../../../../src/stores/vocabStore';
 import { useNavigationStore } from '../../../../src/stores/navigationStore';
 import { Vocabulary, VocabRow, VocabStatus } from '../../../../src/types';
-import { COLORS, FONTS, RADIUS, SPACING } from '../../../../src/constants/colors';
+import { useColors } from '../../../../src/hooks/useColors';
+import { FONTS, RADIUS, SPACING, type ThemeColors } from '../../../../src/constants/colors';
 import { VocabCard } from '../../../../src/components/VocabCard';
 
 type FilterMode = 'all' | 'unread' | 'studying' | 'studied';
@@ -30,6 +31,9 @@ export default function SectionDetailScreen() {
   const { user } = useAuthStore();
   const { saveLocation } = useNavigationStore();
   const { statusMap, updateStatus, getStatus } = useVocabStore();
+  const C = useColors();
+  const s = useMemo(() => makeStyles(C), [C]);
+
   const [sectionName, setSectionName] = useState('');
   const [vocab, setVocab] = useState<Vocabulary[]>([]);
   const [filter, setFilter] = useState<FilterMode>('all');
@@ -59,7 +63,6 @@ export default function SectionDetailScreen() {
       const firstRow = data[0] as VocabRow;
       setSectionName(firstRow.section_name);
       setVocab((data as VocabRow[]).map(rowToVocab));
-      // Persist last visited location for dashboard "Continue" card
       saveLocation({
         type: 'section',
         chapterId: chapterNum,
@@ -92,55 +95,55 @@ export default function SectionDetailScreen() {
 
   const counts = vocab.reduce(
     (acc, v) => {
-      const s = getStatus(String(v.id));
-      acc[s]++;
+      const st = getStatus(String(v.id));
+      acc[st]++;
       return acc;
     },
     { unread: 0, studying: 0, studied: 0 }
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={s.container}>
       {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Text style={styles.backText}>‹ Sections</Text>
+      <View style={s.header}>
+        <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
+          <Text style={s.backText}>‹ Sections</Text>
         </TouchableOpacity>
-        <Text style={styles.sectionName}>{sectionName || `Section ${sectionNum}`}</Text>
-        <View style={styles.countRow}>
-          <CountPill label="Unread" value={counts.unread} color={COLORS.unread} />
-          <CountPill label="Studying" value={counts.studying} color={COLORS.studying} />
-          <CountPill label="Studied" value={counts.studied} color={COLORS.studied} />
+        <Text style={s.sectionName}>{sectionName || `Section ${sectionNum}`}</Text>
+        <View style={s.countRow}>
+          <CountPill label="Unread" value={counts.unread} color={C.unread} />
+          <CountPill label="Studying" value={counts.studying} color={C.studying} />
+          <CountPill label="Studied" value={counts.studied} color={C.studied} />
         </View>
       </View>
 
       {/* Search */}
-      <View style={styles.searchContainer}>
+      <View style={s.searchContainer}>
         <TextInput
-          style={styles.searchInput}
+          style={s.searchInput}
           placeholder="Search words..."
-          placeholderTextColor={COLORS.textMuted}
+          placeholderTextColor={C.textMuted}
           value={search}
           onChangeText={setSearch}
         />
       </View>
 
       {/* Filter tabs */}
-      <View style={styles.filterRow}>
+      <View style={s.filterRow}>
         {FILTER_OPTIONS.map((opt) => (
           <TouchableOpacity
             key={opt.value}
             onPress={() => setFilter(opt.value)}
             style={[
-              styles.filterTab,
-              filter === opt.value && styles.filterTabActive,
+              s.filterTab,
+              filter === opt.value && s.filterTabActive,
             ]}
           >
-            <Text style={styles.filterEmoji}>{opt.emoji}</Text>
+            <Text style={s.filterEmoji}>{opt.emoji}</Text>
             <Text
               style={[
-                styles.filterLabel,
-                filter === opt.value && styles.filterLabelActive,
+                s.filterLabel,
+                filter === opt.value && s.filterLabelActive,
               ]}
             >
               {opt.label}
@@ -150,15 +153,15 @@ export default function SectionDetailScreen() {
       </View>
 
       {loading ? (
-        <ActivityIndicator color={COLORS.primary} size="large" style={{ marginTop: 60 }} />
+        <ActivityIndicator color={C.primary} size="large" style={{ marginTop: 60 }} />
       ) : (
         <FlatList
           data={filteredVocab}
           keyExtractor={(item) => String(item.id)}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={s.list}
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={
-            <Text style={styles.countText}>
+            <Text style={s.countText}>
               {filteredVocab.length} word{filteredVocab.length !== 1 ? 's' : ''}
               {filter !== 'all' ? ` (${filter})` : ''}
             </Text>
@@ -167,13 +170,13 @@ export default function SectionDetailScreen() {
             <VocabCard
               vocab={item}
               status={getStatus(String(item.id))}
-              onStatusChange={(s) => handleStatusChange(String(item.id), s)}
+              onStatusChange={(st) => handleStatusChange(String(item.id), st)}
             />
           )}
           ListEmptyComponent={
-            <View style={styles.empty}>
-              <Text style={styles.emptyEmoji}>🔍</Text>
-              <Text style={styles.emptyText}>No words found</Text>
+            <View style={s.empty}>
+              <Text style={s.emptyEmoji}>🔍</Text>
+              <Text style={s.emptyText}>No words found</Text>
             </View>
           }
         />
@@ -184,65 +187,70 @@ export default function SectionDetailScreen() {
 
 function CountPill({ label, value, color }: { label: string; value: number; color: string }) {
   return (
-    <View style={[styles.pill, { backgroundColor: `${color}20` }]}>
-      <Text style={[styles.pillValue, { color }]}>{value}</Text>
-      <Text style={[styles.pillLabel, { color }]}>{label}</Text>
+    <View style={[staticStyles.pill, { backgroundColor: `${color}20` }]}>
+      <Text style={[staticStyles.pillValue, { color }]}>{value}</Text>
+      <Text style={[staticStyles.pillLabel, { color }]}>{label}</Text>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg },
-  header: { padding: SPACING.xl, paddingBottom: SPACING.md, gap: SPACING.sm },
-  backBtn: {},
-  backText: { color: COLORS.primary, fontSize: FONTS.sizes.md, fontWeight: FONTS.weights.semibold },
-  sectionName: { fontSize: FONTS.sizes.xxl, fontWeight: FONTS.weights.heavy, color: COLORS.text },
-  countRow: { flexDirection: 'row', gap: SPACING.sm },
+const staticStyles = StyleSheet.create({
   pill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: SPACING.sm, paddingVertical: 4, borderRadius: RADIUS.full },
   pillValue: { fontSize: FONTS.sizes.sm, fontWeight: FONTS.weights.bold },
   pillLabel: { fontSize: FONTS.sizes.xs, fontWeight: FONTS.weights.medium },
-  searchContainer: { paddingHorizontal: SPACING.xl, marginBottom: SPACING.sm },
-  searchInput: {
-    backgroundColor: COLORS.bgCard,
-    borderRadius: RADIUS.md,
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.sm,
-    color: COLORS.text,
-    fontSize: FONTS.sizes.md,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  filterRow: {
-    flexDirection: 'row',
-    paddingHorizontal: SPACING.xl,
-    gap: SPACING.sm,
-    marginBottom: SPACING.md,
-  },
-  filterTab: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: SPACING.sm,
-    borderRadius: RADIUS.md,
-    backgroundColor: COLORS.bgCard,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    gap: 2,
-  },
-  filterTabActive: {
-    backgroundColor: COLORS.primaryMuted,
-    borderColor: COLORS.primary,
-  },
-  filterEmoji: { fontSize: 16 },
-  filterLabel: { fontSize: FONTS.sizes.xs, color: COLORS.textMuted, fontWeight: FONTS.weights.medium },
-  filterLabelActive: { color: COLORS.primary },
-  countText: {
-    fontSize: FONTS.sizes.sm,
-    color: COLORS.textMuted,
-    marginBottom: SPACING.sm,
-    fontWeight: FONTS.weights.medium,
-  },
-  list: { paddingHorizontal: SPACING.xl, paddingBottom: SPACING.xxxl },
-  empty: { alignItems: 'center', marginTop: 60, gap: SPACING.md },
-  emptyEmoji: { fontSize: 40 },
-  emptyText: { fontSize: FONTS.sizes.md, color: COLORS.textSecondary },
 });
+
+function makeStyles(C: ThemeColors) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: C.bg },
+    header: { padding: SPACING.xl, paddingBottom: SPACING.md, gap: SPACING.sm },
+    backBtn: {},
+    backText: { color: C.primary, fontSize: FONTS.sizes.md, fontWeight: FONTS.weights.semibold },
+    sectionName: { fontSize: FONTS.sizes.xxl, fontWeight: FONTS.weights.heavy, color: C.text },
+    countRow: { flexDirection: 'row', gap: SPACING.sm },
+    searchContainer: { paddingHorizontal: SPACING.xl, marginBottom: SPACING.sm },
+    searchInput: {
+      backgroundColor: C.bgCard,
+      borderRadius: RADIUS.md,
+      paddingHorizontal: SPACING.lg,
+      paddingVertical: SPACING.sm,
+      color: C.text,
+      fontSize: FONTS.sizes.md,
+      borderWidth: 1,
+      borderColor: C.border,
+    },
+    filterRow: {
+      flexDirection: 'row',
+      paddingHorizontal: SPACING.xl,
+      gap: SPACING.sm,
+      marginBottom: SPACING.md,
+    },
+    filterTab: {
+      flex: 1,
+      alignItems: 'center',
+      paddingVertical: SPACING.sm,
+      borderRadius: RADIUS.md,
+      backgroundColor: C.bgCard,
+      borderWidth: 1,
+      borderColor: C.border,
+      gap: 2,
+    },
+    filterTabActive: {
+      backgroundColor: C.primaryMuted,
+      borderColor: C.primary,
+    },
+    filterEmoji: { fontSize: 16 },
+    filterLabel: { fontSize: FONTS.sizes.xs, color: C.textMuted, fontWeight: FONTS.weights.medium },
+    filterLabelActive: { color: C.primary },
+    countText: {
+      fontSize: FONTS.sizes.sm,
+      color: C.textMuted,
+      marginBottom: SPACING.sm,
+      fontWeight: FONTS.weights.medium,
+    },
+    list: { paddingHorizontal: SPACING.xl, paddingBottom: SPACING.xxxl },
+    empty: { alignItems: 'center', marginTop: 60, gap: SPACING.md },
+    emptyEmoji: { fontSize: 40 },
+    emptyText: { fontSize: FONTS.sizes.md, color: C.textSecondary },
+  });
+}

@@ -11,6 +11,7 @@ import { useSettingsStore } from '../../src/stores/settingsStore';
 import { generateAudioScript, JlptLevel, ScriptLength, WordFrequency, GeneratedScript } from '../../src/lib/groq';
 import { synthesizeSpeech, SynthesisResult } from '../../src/lib/tts';
 import { supabase } from '../../src/lib/supabase';
+import { FuriganaText } from '../../src/components/FuriganaText';
 import { COLORS, FONTS, RADIUS, SPACING, SHADOWS } from '../../src/constants/colors';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -37,6 +38,8 @@ const FREQUENCY_OPTIONS: { label: string; sub: string; value: WordFrequency; col
 
 // ── Main Screen ────────────────────────────────────────────────────────────────
 
+export type VocabSource = 'chapters' | 'general';
+
 export default function AudioScreen() {
   const { user } = useAuthStore();
   const settings = useSettingsStore();
@@ -46,9 +49,12 @@ export default function AudioScreen() {
   const [generatingMsg, setGeneratingMsg] = useState('Preparing...');
 
   // Configure
+  const [vocabSource, setVocabSource] = useState<VocabSource>('chapters');
   const [vocabFilters, setVocabFilters] = useState<VocabFilter[]>(['studying']);
   const [chapters, setChapters] = useState<ChapterOption[]>([]);
   const [selectedChapter, setSelectedChapter] = useState<number | 'all'>('all');
+  const [generalCategories, setGeneralCategories] = useState<string[]>([]);
+  const [selectedGeneralCat, setSelectedGeneralCat] = useState<string>('all');
   const [jlptRange, setJlptRange] = useState<[number, number]>([0, 0]);
   const [scriptLength, setScriptLength] = useState<ScriptLength>('medium');
   const [wordFrequency, setWordFrequency] = useState<WordFrequency>('medium');
@@ -60,7 +66,7 @@ export default function AudioScreen() {
   const player = useAudioPlayer(synthesis ? { uri: synthesis.fileUri } : null);
   const status = useAudioPlayerStatus(player);
 
-  // Load chapters on mount
+  // Load chapters & general categories on mount
   useEffect(() => {
     (async () => {
       const { data } = await supabase
@@ -77,6 +83,18 @@ export default function AudioScreen() {
           }
         }
         setChapters(unique);
+      }
+
+      // Load general word categories
+      const { data: genData } = await supabase
+        .from('general_words')
+        .select('category');
+      if (genData) {
+        const catSet = new Set<string>();
+        genData.forEach((r: any) => {
+          if (r.category?.trim()) catSet.add(r.category.trim());
+        });
+        setGeneralCategories(Array.from(catSet).sort());
       }
     })();
   }, []);
@@ -97,43 +115,76 @@ export default function AudioScreen() {
     setStep('generating');
     try {
       setGeneratingMsg('Loading vocabulary...');
+      let words: { word: string; reading: string; meaning: string }[] = [];
 
-      // Fetch user's word statuses
-      const statusQuery = supabase
-        .from('user_vocab_status')
-        .select('chapter, section, no, status')
-        .eq('user_id', user?.id ?? '')
-        .in('status', vocabFilters);
-      if (selectedChapter !== 'all') {
-        statusQuery.eq('chapter', selectedChapter);
-      }
-      const { data: statusData } = await statusQuery;
+      if (vocabSource === 'chapters') {
+        // Fetch user's word statuses for chapters
+        const statusQuery = supabase
+          .from('user_vocab_status')
+          .select('chapter, section, no, status')
+          .eq('user_id', user?.id ?? '')
+          .in('status', vocabFilters);
+        if (selectedChapter !== 'all') {
+          statusQuery.eq('chapter', selectedChapter);
+        }
+        const { data: statusData } = await statusQuery;
 
-      // Fetch vocab rows (optionally filtered by chapter)
-      const vocabQuery = supabase
-        .from('vocabulary')
-        .select('chapter, section, no, word_kanji, reading, meaning');
-      if (selectedChapter !== 'all') {
-        vocabQuery.eq('chapter', selectedChapter);
-      }
-      const { data: vocabData } = await vocabQuery;
+        // Fetch vocab rows (optionally filtered by chapter)
+        const vocabQuery = supabase
+          .from('vocabulary')
+          .select('chapter, section, no, word_kanji, reading, meaning');
+        if (selectedChapter !== 'all') {
+          vocabQuery.eq('chapter', selectedChapter);
+        }
+        const { data: vocabData } = await vocabQuery;
 
-      // Match
-      const words: { word: string; reading: string; meaning: string }[] = [];
-      if (statusData && vocabData) {
-        const statusSet = new Set(statusData.map((r: any) => `${r.chapter}_${r.section}_${r.no}`));
-        for (const row of vocabData as any[]) {
-          if (statusSet.has(`${row.chapter}_${row.section}_${row.no}`)) {
-            words.push({ word: row.word_kanji, reading: row.reading, meaning: row.meaning });
+        // Match
+        if (statusData && vocabData) {
+          const statusSet = new Set(statusData.map((r: any) => `${r.chapter}_${r.section}_${r.no}`));
+          for (const row of vocabData as any[]) {
+            if (statusSet.has(`${row.chapter}_${row.section}_${row.no}`)) {
+              words.push({ word: row.word_kanji, reading: row.reading, meaning: row.meaning });
+            }
+          }
+        }
+      } else {
+        // Fetch General Words
+        const gwStatusQuery = supabase
+          .from('user_general_word_status')
+          .select('word_id, status')
+          .eq('user_id', user?.id ?? '')
+          .in('status', vocabFilters);
+        const { data: gwStatusData } = await gwStatusQuery;
+
+        let gwQuery = supabase
+          .from('general_words')
+          .select('id, word_japanese, word_hiragana, word_english, category');
+        if (selectedGeneralCat !== 'all') {
+          gwQuery = gwQuery.eq('category', selectedGeneralCat);
+        }
+        const { data: gwData } = await gwQuery;
+
+        if (gwStatusData && gwData) {
+          const statusSet = new Set(gwStatusData.map((r: any) => r.word_id));
+          for (const row of gwData as any[]) {
+            if (statusSet.has(row.id)) {
+              words.push({
+                word: row.word_japanese,
+                reading: row.word_hiragana,
+                meaning: row.word_english,
+              });
+            }
           }
         }
       }
 
       if (words.length === 0) {
         throw new Error(
-          selectedChapter !== 'all'
-            ? `No ${vocabFilters.join('/')} words in this chapter. Try another chapter or status.`
-            : `No ${vocabFilters.join('/')} vocabulary found. Mark some words first.`
+          vocabSource === 'chapters'
+            ? (selectedChapter !== 'all'
+                ? `No ${vocabFilters.join('/')} words in this chapter. Try another chapter or status.`
+                : `No ${vocabFilters.join('/')} vocabulary found. Mark some words first.`)
+            : `No ${vocabFilters.join('/')} General Words found in ${selectedGeneralCat === 'all' ? 'any category' : selectedGeneralCat}. Mark some General Words as studying/studied first!`
         );
       }
 
@@ -143,13 +194,13 @@ export default function AudioScreen() {
       setGeneratingMsg('Generating script with AI...');
       const generated = await generateAudioScript(
         words, levels, scriptLength, wordFrequency,
-        settings.groqApiKey, settings.groqModel
+        settings.groqApiKey, settings.groqModel || 'llama-3.3-70b-versatile'
       );
       setScript(generated);
 
       setGeneratingMsg('Synthesizing audio...');
       const synth = await synthesizeSpeech(
-        generated.text,
+        generated.speechText || generated.text,
         settings.inworldApiKey,
         settings.inworldModel,
         settings.inworldVoice
@@ -192,6 +243,8 @@ export default function AudioScreen() {
 
       {step === 'configure' && (
         <ConfigureStep
+          vocabSource={vocabSource}
+          onSelectSource={setVocabSource}
           vocabFilters={vocabFilters}
           onToggleFilter={(f) =>
             setVocabFilters((prev) =>
@@ -201,6 +254,9 @@ export default function AudioScreen() {
           chapters={chapters}
           selectedChapter={selectedChapter}
           onSelectChapter={setSelectedChapter}
+          generalCategories={generalCategories}
+          selectedGeneralCat={selectedGeneralCat}
+          onSelectGeneralCat={setSelectedGeneralCat}
           jlptRange={jlptRange}
           onLevelPress={handleLevelPress}
           scriptLength={scriptLength}
@@ -234,18 +290,25 @@ export default function AudioScreen() {
 // ── Configure Step ─────────────────────────────────────────────────────────────
 
 function ConfigureStep({
+  vocabSource, onSelectSource,
   vocabFilters, onToggleFilter,
   chapters, selectedChapter, onSelectChapter,
+  generalCategories, selectedGeneralCat, onSelectGeneralCat,
   jlptRange, onLevelPress,
   scriptLength, onLengthChange,
   wordFrequency, onFrequencyChange,
   error, onGenerate,
 }: {
+  vocabSource: VocabSource;
+  onSelectSource: (s: VocabSource) => void;
   vocabFilters: VocabFilter[];
   onToggleFilter: (f: VocabFilter) => void;
   chapters: ChapterOption[];
   selectedChapter: number | 'all';
   onSelectChapter: (c: number | 'all') => void;
+  generalCategories: string[];
+  selectedGeneralCat: string;
+  onSelectGeneralCat: (cat: string) => void;
   jlptRange: [number, number];
   onLevelPress: (idx: number) => void;
   scriptLength: ScriptLength;
@@ -259,6 +322,37 @@ function ConfigureStep({
 
   return (
     <ScrollView contentContainerStyle={styles.configContent} showsVerticalScrollIndicator={false}>
+
+      {/* ── 0. Vocabulary Source ─────────────────────────── */}
+      <SectionCard title="Vocabulary Source" emoji="📚">
+        <Text style={styles.sectionDesc}>Choose your vocabulary set</Text>
+        <View style={styles.row}>
+          <TouchableOpacity
+            onPress={() => onSelectSource('chapters')}
+            style={[
+              styles.filterChip,
+              vocabSource === 'chapters' && { borderColor: COLORS.primary, backgroundColor: `${COLORS.primary}18` },
+            ]}
+          >
+            <Text style={styles.filterEmoji}>📖</Text>
+            <Text style={[styles.filterText, vocabSource === 'chapters' && { color: COLORS.primary, fontWeight: '700' }]}>
+              Chapters
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => onSelectSource('general')}
+            style={[
+              styles.filterChip,
+              vocabSource === 'general' && { borderColor: COLORS.primary, backgroundColor: `${COLORS.primary}18` },
+            ]}
+          >
+            <Text style={styles.filterEmoji}>✨</Text>
+            <Text style={[styles.filterText, vocabSource === 'general' && { color: COLORS.primary, fontWeight: '700' }]}>
+              General Words
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </SectionCard>
 
       {/* ── 1. Vocab Status ──────────────────────────────── */}
       <SectionCard title="Word Status" emoji="📖">
@@ -284,36 +378,66 @@ function ConfigureStep({
       </SectionCard>
 
       {/* ── 2. Chapter / Category ────────────────────────── */}
-      <SectionCard title="Vocabulary Category" emoji="🗂️">
-        <Text style={styles.sectionDesc}>Browse by chapter or use all words.</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chapterScroll}>
-          <TouchableOpacity
-            onPress={() => onSelectChapter('all')}
-            style={[styles.chapterChip, selectedChapter === 'all' && styles.chapterChipActive]}
-          >
-            <Text style={[styles.chapterChipText, selectedChapter === 'all' && styles.chapterChipTextActive]}>
-              All
-            </Text>
-          </TouchableOpacity>
-          {chapters.map((ch) => (
+      {vocabSource === 'chapters' ? (
+        <SectionCard title="Vocabulary Chapter" emoji="🗂️">
+          <Text style={styles.sectionDesc}>Browse by chapter or use all words.</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chapterScroll}>
             <TouchableOpacity
-              key={ch.chapter}
-              onPress={() => onSelectChapter(ch.chapter)}
-              style={[styles.chapterChip, selectedChapter === ch.chapter && styles.chapterChipActive]}
+              onPress={() => onSelectChapter('all')}
+              style={[styles.chapterChip, selectedChapter === 'all' && styles.chapterChipActive]}
             >
-              <Text style={[styles.chapterChipNum, selectedChapter === ch.chapter && { color: COLORS.primary }]}>
-                Ch.{ch.chapter}
-              </Text>
-              <Text
-                style={[styles.chapterChipText, selectedChapter === ch.chapter && styles.chapterChipTextActive]}
-                numberOfLines={1}
-              >
-                {ch.chapter_name}
+              <Text style={[styles.chapterChipText, selectedChapter === 'all' && styles.chapterChipTextActive]}>
+                All
               </Text>
             </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </SectionCard>
+            {chapters.map((ch) => (
+              <TouchableOpacity
+                key={ch.chapter}
+                onPress={() => onSelectChapter(ch.chapter)}
+                style={[styles.chapterChip, selectedChapter === ch.chapter && styles.chapterChipActive]}
+              >
+                <Text style={[styles.chapterChipNum, selectedChapter === ch.chapter && { color: COLORS.primary }]}>
+                  Ch.{ch.chapter}
+                </Text>
+                <Text
+                  style={[styles.chapterChipText, selectedChapter === ch.chapter && styles.chapterChipTextActive]}
+                  numberOfLines={1}
+                >
+                  {ch.chapter_name}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </SectionCard>
+      ) : (
+        <SectionCard title="General Category" emoji="🏷️">
+          <Text style={styles.sectionDesc}>Filter by topic or use all general words.</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chapterScroll}>
+            <TouchableOpacity
+              onPress={() => onSelectGeneralCat('all')}
+              style={[styles.chapterChip, selectedGeneralCat === 'all' && styles.chapterChipActive]}
+            >
+              <Text style={[styles.chapterChipText, selectedGeneralCat === 'all' && styles.chapterChipTextActive]}>
+                All Categories
+              </Text>
+            </TouchableOpacity>
+            {generalCategories.map((cat) => (
+              <TouchableOpacity
+                key={cat}
+                onPress={() => onSelectGeneralCat(cat)}
+                style={[styles.chapterChip, selectedGeneralCat === cat && styles.chapterChipActive]}
+              >
+                <Text
+                  style={[styles.chapterChipText, selectedGeneralCat === cat && styles.chapterChipTextActive]}
+                  numberOfLines={1}
+                >
+                  {cat}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </SectionCard>
+      )}
 
       {/* ── 3. Word Frequency ────────────────────────────── */}
       <SectionCard title="Vocab Frequency" emoji="🔁">
@@ -431,30 +555,53 @@ function PlayerStep({
   const duration = status?.duration ?? 0;
   const progress = duration > 0 ? Math.min(currentTime / duration, 1) : 0;
 
+  const handleReplay = () => {
+    player.seekTo(0);
+    player.play();
+  };
+
   return (
     <View style={{ flex: 1 }}>
       <ScrollView style={styles.playerScroll} contentContainerStyle={styles.playerContent} showsVerticalScrollIndicator={false}>
 
         {/* ── Script: sentences with translations ─── */}
         <View style={styles.scriptCard}>
-          <Text style={styles.scriptCardLabel}>Japanese Script</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.sm }}>
+            <Text style={styles.scriptCardLabel}>Japanese Dialogue & Script</Text>
+            <TouchableOpacity onPress={handleReplay} style={styles.replayMiniBtn} activeOpacity={0.8}>
+              <Text style={styles.replayMiniText}>↺ Replay Audio</Text>
+            </TouchableOpacity>
+          </View>
+
           {script.sentences.map((s, i) => (
             <View key={i} style={styles.sentenceBlock}>
-              <Text style={styles.sentenceJa}>{s.ja}</Text>
+              <FuriganaText
+                text={s.ja}
+                fontSize={16}
+                textColor={COLORS.text}
+                furiganaColor={COLORS.primaryLight}
+              />
               {s.en ? <Text style={styles.sentenceEn}>{s.en}</Text> : null}
             </View>
           ))}
         </View>
 
-        {/* ── Vocabulary used ────────────────────── */}
+        {/* ── All Vocabulary used in Script ────────────────────── */}
         {script.usedWords.length > 0 && (
           <View style={styles.meaningsCard}>
-            <Text style={styles.meaningsTitle}>📖 Vocabulary Used</Text>
+            <View style={{ marginBottom: SPACING.sm }}>
+              <Text style={styles.meaningsTitle}>📖 Script Vocabulary ({script.usedWords.length} words)</Text>
+              <Text style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 2 }}>
+                All key words and expressions featured in this listening lesson
+              </Text>
+            </View>
             {script.usedWords.map((w, i) => (
               <View key={i} style={styles.meaningRow}>
                 <View style={styles.meaningLeft}>
                   <Text style={styles.meaningWord}>{w.word}</Text>
-                  <Text style={styles.meaningReading}>{w.reading}</Text>
+                  {w.reading && w.reading !== w.word ? (
+                    <Text style={styles.meaningReading}>{w.reading}</Text>
+                  ) : null}
                 </View>
                 <Text style={styles.meaningDef} numberOfLines={2}>{w.meaning}</Text>
               </View>
@@ -462,7 +609,7 @@ function PlayerStep({
           </View>
         )}
 
-        <View style={{ height: 150 }} />
+        <View style={{ height: 160 }} />
       </ScrollView>
 
       {/* ── Floating player controls ───────────── */}
@@ -485,8 +632,8 @@ function PlayerStep({
           >
             <Text style={styles.playBtnIcon}>{isPlaying ? '⏸' : '▶'}</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => player.seekTo(0)} style={styles.sideBtn}>
-            <Text style={styles.sideBtnText}>↩ Reset</Text>
+          <TouchableOpacity onPress={handleReplay} style={styles.sideBtn}>
+            <Text style={styles.sideBtnText}>↺ Replay</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -625,8 +772,24 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.lg, borderWidth: 1, borderColor: COLORS.border, ...SHADOWS.card,
   },
   scriptCardLabel: {
-    fontSize: FONTS.sizes.xs, color: COLORS.primary, fontWeight: FONTS.weights.semibold,
-    textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: SPACING.md,
+    fontSize: FONTS.sizes.sm,
+    fontWeight: FONTS.weights.bold,
+    color: COLORS.primary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  replayMiniBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: RADIUS.full,
+    backgroundColor: `${COLORS.primary}18`,
+    borderWidth: 1,
+    borderColor: `${COLORS.primary}40`,
+  },
+  replayMiniText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: COLORS.primary,
   },
   sentenceBlock: {
     marginBottom: SPACING.md,

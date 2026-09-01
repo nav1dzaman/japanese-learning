@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import { COLORS, RADIUS } from '../constants/colors';
+import { RADIUS } from '../constants/colors';
 
 interface ProgressBarProps {
   progress: number; // 0–1
@@ -11,8 +11,8 @@ interface ProgressBarProps {
 
 export function ProgressBar({
   progress,
-  color = COLORS.primary,
-  backgroundColor = COLORS.bgElevated,
+  color = '#7C6AF7',
+  backgroundColor = '#1E1E36',
   height = 6,
 }: ProgressBarProps) {
   const clampedProgress = Math.max(0, Math.min(1, progress));

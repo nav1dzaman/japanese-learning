@@ -1,16 +1,19 @@
 import { Link, Stack } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
-import { COLORS, FONTS, SPACING } from '../src/constants/colors';
+import { useColors } from '../src/hooks/useColors';
+import { FONTS, SPACING } from '../src/constants/colors';
 
 export default function NotFoundScreen() {
+  const C = useColors();
+
   return (
     <>
       <Stack.Screen options={{ title: 'Oops!' }} />
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: C.bg }]}>
         <Text style={styles.emoji}>🔍</Text>
-        <Text style={styles.title}>Page Not Found</Text>
+        <Text style={[styles.title, { color: C.text }]}>Page Not Found</Text>
         <Link href="/(tabs)" style={styles.link}>
-          <Text style={styles.linkText}>Go to home screen</Text>
+          <Text style={[styles.linkText, { color: C.primary }]}>Go to home screen</Text>
         </Link>
       </View>
     </>
@@ -22,11 +25,10 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: COLORS.bg,
     gap: SPACING.lg,
   },
   emoji: { fontSize: 48 },
-  title: { fontSize: FONTS.sizes.xl, color: COLORS.text, fontWeight: FONTS.weights.bold },
+  title: { fontSize: FONTS.sizes.xl, fontWeight: FONTS.weights.bold },
   link: { marginTop: SPACING.md },
-  linkText: { color: COLORS.primary, fontSize: FONTS.sizes.md },
+  linkText: { fontSize: FONTS.sizes.md },
 });

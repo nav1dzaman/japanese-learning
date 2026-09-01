@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   View, Text, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity
 } from 'react-native';
@@ -7,7 +7,8 @@ import { supabase } from '../../src/lib/supabase';
 import { useAuthStore } from '../../src/stores/authStore';
 import { useVocabStore } from '../../src/stores/vocabStore';
 import { Vocabulary, VocabStatus } from '../../src/types';
-import { COLORS, FONTS, RADIUS, SPACING } from '../../src/constants/colors';
+import { useColors } from '../../src/hooks/useColors';
+import { FONTS, RADIUS, SPACING, type ThemeColors } from '../../src/constants/colors';
 import { VocabCard } from '../../src/components/VocabCard';
 
 type TabMode = 'studied' | 'studying';
@@ -15,6 +16,8 @@ type TabMode = 'studied' | 'studying';
 export default function StudiedScreen() {
   const { user } = useAuthStore();
   const { statusMap, getStatus, updateStatus } = useVocabStore();
+  const C = useColors();
+  const s = useMemo(() => makeStyles(C), [C]);
   const [tab, setTab] = useState<TabMode>('studied');
   const [vocab, setVocab] = useState<Vocabulary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,58 +66,58 @@ export default function StudiedScreen() {
   const tabCount = vocab.length;
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>My Words</Text>
-        <Text style={styles.subtitle}>Words you're tracking</Text>
+    <SafeAreaView style={s.container}>
+      <View style={s.header}>
+        <Text style={s.title}>My Words</Text>
+        <Text style={s.subtitle}>Words you're tracking</Text>
       </View>
 
       {/* Tab switcher */}
-      <View style={styles.tabs}>
+      <View style={s.tabs}>
         <TouchableOpacity
-          style={[styles.tab, tab === 'studied' && styles.tabActive]}
+          style={[s.tab, tab === 'studied' && s.tabActive]}
           onPress={() => setTab('studied')}
         >
-          <Text style={styles.tabEmoji}>✅</Text>
-          <Text style={[styles.tabLabel, tab === 'studied' && styles.tabLabelActive]}>
+          <Text style={s.tabEmoji}>✅</Text>
+          <Text style={[s.tabLabel, tab === 'studied' && s.tabLabelActive]}>
             Studied
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.tab, tab === 'studying' && styles.tabActiveAmber]}
+          style={[s.tab, tab === 'studying' && s.tabActiveAmber]}
           onPress={() => setTab('studying')}
         >
-          <Text style={styles.tabEmoji}>✏️</Text>
-          <Text style={[styles.tabLabel, tab === 'studying' && styles.tabLabelAmber]}>
+          <Text style={s.tabEmoji}>✏️</Text>
+          <Text style={[s.tabLabel, tab === 'studying' && s.tabLabelAmber]}>
             Studying
           </Text>
         </TouchableOpacity>
       </View>
 
-      <Text style={styles.countText}>{tabCount} word{tabCount !== 1 ? 's' : ''}</Text>
+      <Text style={s.countText}>{tabCount} word{tabCount !== 1 ? 's' : ''}</Text>
 
       {loading ? (
-        <ActivityIndicator color={COLORS.primary} size="large" style={{ marginTop: 60 }} />
+        <ActivityIndicator color={C.primary} size="large" style={{ marginTop: 60 }} />
       ) : (
         <FlatList
           data={vocab}
           keyExtractor={(item) => String(item.id)}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={s.list}
           showsVerticalScrollIndicator={false}
           renderItem={({ item }) => (
             <VocabCard
               vocab={item}
               status={getStatus(String(item.id))}
-              onStatusChange={(s) => handleStatusChange(String(item.id), s)}
+              onStatusChange={(st) => handleStatusChange(String(item.id), st)}
             />
           )}
           ListEmptyComponent={
-            <View style={styles.empty}>
-              <Text style={styles.emptyEmoji}>{tab === 'studied' ? '📚' : '✏️'}</Text>
-              <Text style={styles.emptyText}>
+            <View style={s.empty}>
+              <Text style={s.emptyEmoji}>{tab === 'studied' ? '📚' : '✏️'}</Text>
+              <Text style={s.emptyText}>
                 No {tab === 'studied' ? 'studied' : 'studying'} words yet
               </Text>
-              <Text style={styles.emptySubtext}>
+              <Text style={s.emptySubtext}>
                 Browse vocabulary and tap the status button on each card
               </Text>
             </View>
@@ -125,45 +128,47 @@ export default function StudiedScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.bg },
-  header: { padding: SPACING.xl, paddingBottom: SPACING.md },
-  title: { fontSize: FONTS.sizes.xxl, fontWeight: FONTS.weights.heavy, color: COLORS.text },
-  subtitle: { fontSize: FONTS.sizes.sm, color: COLORS.textSecondary, marginTop: 2 },
-  tabs: {
-    flexDirection: 'row',
-    paddingHorizontal: SPACING.xl,
-    gap: SPACING.md,
-    marginBottom: SPACING.sm,
-  },
-  tab: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: SPACING.sm,
-    paddingVertical: SPACING.md,
-    borderRadius: RADIUS.md,
-    backgroundColor: COLORS.bgCard,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  tabActive: { backgroundColor: COLORS.studiedMuted, borderColor: COLORS.studied },
-  tabActiveAmber: { backgroundColor: COLORS.studyingMuted, borderColor: COLORS.studying },
-  tabEmoji: { fontSize: 18 },
-  tabLabel: { fontSize: FONTS.sizes.md, fontWeight: FONTS.weights.semibold, color: COLORS.textSecondary },
-  tabLabelActive: { color: COLORS.studied },
-  tabLabelAmber: { color: COLORS.studying },
-  countText: {
-    paddingHorizontal: SPACING.xl,
-    fontSize: FONTS.sizes.sm,
-    color: COLORS.textMuted,
-    marginBottom: SPACING.sm,
-    fontWeight: FONTS.weights.medium,
-  },
-  list: { paddingHorizontal: SPACING.xl, paddingBottom: SPACING.xxxl },
-  empty: { alignItems: 'center', marginTop: 80, gap: SPACING.md, paddingHorizontal: SPACING.xl },
-  emptyEmoji: { fontSize: 52 },
-  emptyText: { fontSize: FONTS.sizes.lg, color: COLORS.textSecondary, fontWeight: FONTS.weights.semibold, textAlign: 'center' },
-  emptySubtext: { fontSize: FONTS.sizes.sm, color: COLORS.textMuted, textAlign: 'center', lineHeight: 20 },
-});
+function makeStyles(C: ThemeColors) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: C.bg },
+    header: { padding: SPACING.xl, paddingBottom: SPACING.md },
+    title: { fontSize: FONTS.sizes.xxl, fontWeight: FONTS.weights.heavy, color: C.text },
+    subtitle: { fontSize: FONTS.sizes.sm, color: C.textSecondary, marginTop: 2 },
+    tabs: {
+      flexDirection: 'row',
+      paddingHorizontal: SPACING.xl,
+      gap: SPACING.md,
+      marginBottom: SPACING.sm,
+    },
+    tab: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: SPACING.sm,
+      paddingVertical: SPACING.md,
+      borderRadius: RADIUS.md,
+      backgroundColor: C.bgCard,
+      borderWidth: 1,
+      borderColor: C.border,
+    },
+    tabActive: { backgroundColor: C.studiedMuted, borderColor: C.studied },
+    tabActiveAmber: { backgroundColor: C.studyingMuted, borderColor: C.studying },
+    tabEmoji: { fontSize: 18 },
+    tabLabel: { fontSize: FONTS.sizes.md, fontWeight: FONTS.weights.semibold, color: C.textSecondary },
+    tabLabelActive: { color: C.studied },
+    tabLabelAmber: { color: C.studying },
+    countText: {
+      paddingHorizontal: SPACING.xl,
+      fontSize: FONTS.sizes.sm,
+      color: C.textMuted,
+      marginBottom: SPACING.sm,
+      fontWeight: FONTS.weights.medium,
+    },
+    list: { paddingHorizontal: SPACING.xl, paddingBottom: SPACING.xxxl },
+    empty: { alignItems: 'center', marginTop: 80, gap: SPACING.md, paddingHorizontal: SPACING.xl },
+    emptyEmoji: { fontSize: 52 },
+    emptyText: { fontSize: FONTS.sizes.lg, color: C.textSecondary, fontWeight: FONTS.weights.semibold, textAlign: 'center' },
+    emptySubtext: { fontSize: FONTS.sizes.sm, color: C.textMuted, textAlign: 'center', lineHeight: 20 },
+  });
+}

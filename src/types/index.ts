@@ -44,9 +44,12 @@ export interface Vocabulary {
 }
 
 export interface QuizQuestion {
-  vocab: Vocabulary;
+  vocabId: string;
+  word: string;
+  reading: string;
   options: string[];
   correctAnswer: string;
+  vocab?: Vocabulary;
 }
 
 export interface SectionWithCount extends Section {
@@ -91,3 +94,35 @@ export interface Verb {
   plain_volitional: string;
   polite_volitional: string;
 }
+
+// ── General Words Types ──
+export type GeneralWordStatus = 'unread' | 'studying' | 'studied';
+
+export interface VerbForms {
+  nai?: string;
+  te?: string;
+  potential?: string;
+  volitional?: string;
+  masu?: string;
+  ta?: string;
+  [key: string]: string | undefined;
+}
+
+export interface GeneralWord {
+  id: string;
+  user_id?: string;
+  word_english: string;
+  word_japanese: string;
+  word_hiragana: string;
+  word_romaji: string;
+  word_type: string; // 'verb' | 'noun' | 'adjective' | 'adverb' | 'particle' | 'expression' | 'other'
+  verb_forms?: VerbForms | null;
+  sentence_english?: string;
+  sentence_japanese?: string;
+  category?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export type GeneralWordDraft = Omit<GeneralWord, 'id' | 'created_at' | 'updated_at'>;
+
